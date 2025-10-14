@@ -1,0 +1,16 @@
+# Dependencies
+/node_modules
+
+# Build artifacts
+/dist
+/build
+
+# Environment variables
+.env
+
+# Logs
+*.log
+
+# Prisma
+/prisma/generated/
+/prisma/migrations/

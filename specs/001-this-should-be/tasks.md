@@ -21,8 +21,8 @@ This document breaks down the implementation of the feature into a series of act
 - [x] **T005**: [Test] [Backend] Configure Jest/Mocha for service-level testing in the `backend` project.
 - [x] **T006**: [Test] [Frontend] Configure Jest and React Testing Library in the `frontend` project.
 - [x] **T007**: [Backend] Define the `User` and `Session` models in `backend/prisma/schema.prisma` as specified in `data-model.md`.
-- **T008**: [Backend] Run `npx prisma migrate dev` to generate the Prisma client and create the initial database schema.
-- **T009**: [Backend] [Auth] Implement the Feathers.js authentication service, configuring it to use the `User` model.
+- [x] **T008**: [Backend] Run `npx prisma migrate dev` to generate the Prisma client and create the initial database schema.
+- [x] **T009**: [Backend] [Auth] Implement the Feathers.js authentication service, configuring it to use the `User` model.
 - **T010**: [Frontend] [Auth] Create a global Auth context/provider in the `frontend` to manage JWTs and user state.
 - **T011**: [Frontend] Create the main application layout in `frontend/app/layout.tsx`, including the new Auth provider.
 
