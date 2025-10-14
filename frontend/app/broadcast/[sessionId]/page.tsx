@@ -1,0 +1,201 @@
+"use client";
+
+import { useCallback, useEffect, useState } from "react";
+import { useParams, useRouter } from "next/navigation";
+import {
+  LiveKitRoom,
+  VideoConference,
+  ControlBar,
+  RoomAudioRenderer,
+  useParticipants,
+  ParticipantTile,
+} from "@livekit/components-react";
+import "@livekit/components-styles";
+import { useAuth } from "../../contexts/AuthContext";
+
+interface BroadcastRoomProps {
+  sessionId: string;
+  livekitToken: string;
+  roomName: string;
+  wsUrl: string;
+  title: string;
+}
+
+function BroadcastView({
+  sessionId,
+  livekitToken,
+  roomName,
+  wsUrl,
+  title,
+}: BroadcastRoomProps) {
+  const participants = useParticipants();
+  const router = useRouter();
+
+  const handleEndStream = () => {
+    // In a real app, you'd call an API to end the session
+    router.push("/dashboard");
+  };
+
+  return (
+    <div className="min-h-screen bg-gray-900">
+      <div className="relative h-screen">
+        {/* Header */}
+        <div className="absolute top-0 left-0 right-0 z-50 bg-black bg-opacity-50 p-4">
+          <div className="flex items-center justify-between text-white">
+            <div>
+              <h1 className="text-xl font-bold">{title}</h1>
+              <p className="text-sm text-gray-300">
+                {participants.length} viewer
+                {participants.length !== 1 ? "s" : ""}
+              </p>
+            </div>
+            <button
+              onClick={handleEndStream}
+              className="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700 transition-colors"
+            >
+              End Stream
+            </button>
+          </div>
+        </div>
+
+        {/* Main video area */}
+        <div className="pt-16 h-full">
+          <LiveKitRoom
+            serverUrl={wsUrl}
+            token={livekitToken}
+            connect={true}
+            onDisconnected={() => {
+              console.log("Disconnected from LiveKit room");
+              router.push("/dashboard");
+            }}
+          >
+            <div className="h-full flex flex-col">
+              {/* Main broadcaster view */}
+              <div className="flex-1 relative">
+                <VideoConference />
+              </div>
+
+              {/* Participants grid for viewers (if needed) */}
+              {participants.length > 1 && (
+                <div className="absolute bottom-20 right-4 w-64">
+                  <div className="bg-black bg-opacity-70 p-3 rounded-lg">
+                    <h3 className="text-white text-sm font-medium mb-2">
+                      Viewers
+                    </h3>
+                    <div className="space-y-2 max-h-32 overflow-y-auto">
+                      {participants
+                        .filter((p) => p.identity !== "broadcaster-user-id") // Filter out the broadcaster
+                        .slice(0, 5) // Show max 5 viewers
+                        .map((participant) => (
+                          <div
+                            key={participant.identity}
+                            className="flex items-center space-x-2 text-white text-sm"
+                          >
+                            <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                            <span>
+                              {participant.name || participant.identity}
+                            </span>
+                          </div>
+                        ))}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Control bar */}
+              <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2">
+                <ControlBar />
+              </div>
+            </div>
+            <RoomAudioRenderer />
+          </LiveKitRoom>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export default function BroadcastRoom() {
+  const params = useParams();
+  const router = useRouter();
+  const { user, token: authToken } = useAuth();
+  const sessionId = params.sessionId as string;
+
+  const [sessionData, setSessionData] = useState<Record<string, string> | null>(
+    null
+  );
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const fetchSessionData = useCallback(async () => {
+    try {
+      setLoading(true);
+      setError(null);
+
+      // In a real app, you'd fetch the session data from your backend
+      // For demo purposes, we'll use the sessionId to generate mock data
+      const mockSessionData = {
+        id: sessionId,
+        type: "broadcast",
+        title: "Live Stream",
+        livekitToken: "mock-livekit-token",
+        roomName: `broadcast-${sessionId}`,
+        wsUrl: "ws://localhost:7880",
+      };
+
+      setSessionData(mockSessionData);
+    } catch (err) {
+      setError(
+        err instanceof Error ? err.message : "Failed to load broadcast session"
+      );
+      console.error("Error fetching session data:", err);
+    } finally {
+      setLoading(false);
+    }
+  }, [sessionId]);
+
+  useEffect(() => {
+    if (authToken && sessionId) {
+      fetchSessionData();
+    }
+  }, [authToken, fetchSessionData, sessionId]);
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gray-900 flex items-center justify-center">
+        <div className="text-center text-white">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-white mx-auto mb-4"></div>
+          <p>Loading broadcast...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (error || !sessionData) {
+    return (
+      <div className="min-h-screen bg-gray-900 flex items-center justify-center">
+        <div className="text-center text-white">
+          <p className="text-red-400 mb-4">
+            Error: {error || "Session not found"}
+          </p>
+          <button
+            onClick={() => router.push("/dashboard")}
+            className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+          >
+            Go Back
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <BroadcastView
+      sessionId={sessionId}
+      livekitToken={sessionData.livekitToken}
+      roomName={sessionData.roomName}
+      wsUrl={sessionData.wsUrl}
+      title={sessionData.title}
+    />
+  );
+}

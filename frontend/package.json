@@ -11,7 +11,10 @@
   },
   "dependencies": {
     "@livekit/components-react": "^2.9.15",
-    "livekit-client": "^2.15.9",
+    "@livekit/components-styles": "^1.1.6",
+    "@types/jsonwebtoken": "^9.0.10",
+    "jsonwebtoken": "^9.0.2",
+    "livekit-client": "^2.15.10",
     "next": "15.5.5",
     "react": "19.1.0",
     "react-dom": "19.1.0"

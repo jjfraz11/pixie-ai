@@ -7,6 +7,11 @@ generator client {
   provider = "prisma-client-js"
 }
 
+enum SessionType {
+  P2P
+  BROADCAST
+}
+
 model User {
   id        String   @id @default(cuid())
   email     String   @unique
@@ -14,11 +19,14 @@ model User {
   roles     String[]
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+  sessions  Session[]
 }
 
 model Session {
-  id        String   @id @default(cuid())
-  type      String
+  id        String      @id @default(cuid())
+  type      SessionType
   hostId    String
-  createdAt DateTime @default(now())
+  host      User        @relation(fields: [hostId], references: [id])
+  createdAt DateTime    @default(now())
+  @@index([hostId])
 }
