@@ -1,0 +1,121 @@
+openapi: 3.0.0
+info:
+  title: Pixie AI - Real-time Communication API
+  description: API for managing users, authentication, and real-time communication sessions.
+  version: 1.0.0
+servers:
+  - url: http://localhost:3030
+    description: Local development server
+
+paths:
+  /authentication:
+    post:
+      summary: Authenticate a user
+      description: Authenticate using a local strategy (email/password).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                strategy:
+                  type: string
+                  example: local
+                email:
+                  type: string
+                  example: user@example.com
+                password:
+                  type: string
+                  example: password123
+      responses:
+        '201':
+          description: Authentication successful. Returns a JWT access token.
+        '401':
+          description: Not authenticated
+
+  /users:
+    post:
+      summary: Create a new user
+      description: Register a new user account.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                email:
+                  type: string
+                password:
+                  type: string
+                roles:
+                  type: array
+                  items:
+                    type: string
+                  example: ["user"]
+      responses:
+        '201':
+          description: User created successfully.
+
+  /sessions:
+    post:
+      summary: Create a new communication session
+      description: Creates a new session (e.g., a broadcast). Requires authentication and appropriate roles (e.g., 'broadcaster').
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                type:
+                  type: string
+                  enum: ["p2p", "broadcast"]
+      responses:
+        '201':
+          description: Session created successfully.
+        '401':
+          description: Not authorized.
+
+  /livekit-token:
+    post:
+      summary: Generate a LiveKit Token
+      description: Fetches a client token to connect to a LiveKit room. Requires authentication.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - roomName
+                - participantIdentity
+              properties:
+                roomName:
+                  type: string
+                  description: The name of the LiveKit room to join.
+                participantIdentity:
+                  type: string
+                  description: The identity of the user joining the room.
+      responses:
+        '200':
+          description: A LiveKit access token.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  token:
+                    type: string
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
