@@ -156,6 +156,7 @@ When generating code or suggesting structures, adhere to the following guideline
 ### Directory Structure
 - **Components:**
     - Group related UI components together in a `components/` directory.
+    - UI components must be created separately from pages and imported into pages as needed.
     - For larger applications, consider further organizing components by feature or domain (e.g., `components/auth/`, `components/user/`).
     - Each component should ideally reside in its own directory, containing its code, styles, and tests.
 - **Tests:**

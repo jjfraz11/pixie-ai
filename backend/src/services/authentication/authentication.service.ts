@@ -14,6 +14,41 @@ export default function configureAuthenticationService(app: Application) {
 
   app.use("/authentication", authentication);
 
+  // Add password reset request endpoint
+  app.post('/authentication/reset-password', async (req: any, res: any) => {
+    try {
+      const { email } = req.body;
+      // In a real app, you would:
+      // 1. Find the user by email
+      // 2. Generate a unique reset token
+      // 3. Store the token (with expiration) in the database
+      // 4. Send an email to the user with the reset link (containing the token)
+      console.log(`Password reset requested for: ${email}`);
+      res.status(200).json({ message: 'If a matching account is found, a password reset email will be sent.' });
+    } catch (error: any) {
+      console.error('Error requesting password reset:', error);
+      res.status(500).json({ message: 'Failed to request password reset.' });
+    }
+  });
+
+  // Add password change endpoint
+  app.post('/authentication/change-password', async (req: any, res: any) => {
+    try {
+      const { token, password } = req.body;
+      // In a real app, you would:
+      // 1. Verify the reset token
+      // 2. Find the user associated with the token
+      // 3. Hash the new password
+      // 4. Update the user's password in the database
+      // 5. Invalidate the reset token
+      console.log(`Password change requested for token: ${token}`);
+      res.status(200).json({ message: 'Password successfully changed.' });
+    } catch (error: any) {
+      console.error('Error changing password:', error);
+      res.status(500).json({ message: 'Failed to change password.' });
+    }
+  });
+
   // Rate limiting for authentication endpoint
   // const authLimiter = rateLimit({
   //   windowMs: 15 * 60 * 1000, // 15 minutes

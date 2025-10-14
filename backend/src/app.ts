@@ -55,7 +55,7 @@ app.use((error: any, req: any, res: any, next: any) => {
 
 import configureUsersService from "./services/users/users.service";
 import configureSessionsService from "./services/sessions/sessions.service";
-import configureAuthentication from "./services/authentication.service";
+import configureAuthentication from "./services/authentication/authentication.service";
 
 // Set authentication configuration
 app.set("authentication", {

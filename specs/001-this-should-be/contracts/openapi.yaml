@@ -1,117 +1,13 @@
 openapi: 3.0.0
 info:
-  title: Pixie AI - Real-time Communication API
-  description: API for managing users, authentication, and real-time communication sessions.
+  title: Real-time Communication Platform API
   version: 1.0.0
+  description: API for managing users, authentication, and real-time communication sessions.
 servers:
   - url: http://localhost:3030
-    description: Local development server
-
-paths:
-  /authentication:
-    post:
-      summary: Authenticate a user
-      description: Authenticate using a local strategy (email/password).
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              properties:
-                strategy:
-                  type: string
-                  example: local
-                email:
-                  type: string
-                  example: user@example.com
-                password:
-                  type: string
-                  example: password123
-      responses:
-        '201':
-          description: Authentication successful. Returns a JWT access token.
-        '401':
-          description: Not authenticated
-
-  /users:
-    post:
-      summary: Create a new user
-      description: Register a new user account.
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              properties:
-                email:
-                  type: string
-                password:
-                  type: string
-                roles:
-                  type: array
-                  items:
-                    type: string
-                  example: ["user"]
-      responses:
-        '201':
-          description: User created successfully.
-
-  /sessions:
-    post:
-      summary: Create a new communication session
-      description: Creates a new session (e.g., a broadcast). Requires authentication and appropriate roles (e.g., 'broadcaster').
-      security:
-        - bearerAuth: []
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              properties:
-                type:
-                  type: string
-                  enum: ["p2p", "broadcast"]
-      responses:
-        '201':
-          description: Session created successfully.
-        '401':
-          description: Not authorized.
-
-  /livekit-token:
-    post:
-      summary: Generate a LiveKit Token
-      description: Fetches a client token to connect to a LiveKit room. Requires authentication.
-      security:
-        - bearerAuth: []
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required:
-                - roomName
-                - participantIdentity
-              properties:
-                roomName:
-                  type: string
-                  description: The name of the LiveKit room to join.
-                participantIdentity:
-                  type: string
-                  description: The identity of the user joining the room.
-      responses:
-        '200':
-          description: A LiveKit access token.
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  token:
-                    type: string
+    description: FeathersJS Backend Server
+  - url: http://localhost:3000/api
+    description: Next.js Frontend API Routes (Proxy to Backend)
 
 components:
   securitySchemes:
@@ -119,3 +15,294 @@ components:
       type: http
       scheme: bearer
       bearerFormat: JWT
+  schemas:
+    User:
+      type: object
+      properties:
+        id:
+          type: string
+          format: cuid
+        email:
+          type: string
+          format: email
+        roles:
+          type: array
+          items:
+            type: string
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+    Session:
+      type: object
+      properties:
+        id:
+          type: string
+          format: cuid
+        type:
+          type: string
+          enum: [p2p, broadcast]
+        accessType:
+          type: string
+          enum: [public, private]
+        password:
+          type: string
+          nullable: true
+        hostId:
+          type: string
+          format: cuid
+        createdAt:
+          type: string
+          format: date-time
+    LoginRequest:
+      type: object
+      required:
+        - email
+        - password
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+    RegisterRequest:
+      type: object
+      required:
+        - email
+        - password
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+          minLength: 6
+          pattern: "^(?=.*[a-z])(?=.*[A-Z])(?=.*\\d)(?=.*[@$!%*?&])[A-Za-z\\d@$!%*?&]{6,}$"
+        roles:
+          type: array
+          items:
+            type: string
+          default: ["user"]
+    AuthenticationResponse:
+      type: object
+      properties:
+        accessToken:
+          type: string
+        authentication:
+          type: object
+          properties:
+            strategy:
+              type: string
+            payload:
+              type: object
+              properties:
+                iat:
+                  type: integer
+                exp:
+                  type: integer
+                aud:
+                  type: string
+                iss:
+                  type: string
+                jti:
+                  type: string
+        user:
+          $ref: '#/components/schemas/User'
+    CreateSessionRequest:
+      type: object
+      required:
+        - type
+      properties:
+        type:
+          type: string
+          enum: [p2p, broadcast]
+        title:
+          type: string
+        accessType:
+          type: string
+          enum: [public, private]
+          default: public
+        password:
+          type: string
+          nullable: true
+    LiveKitTokenRequest:
+      type: object
+      required:
+        - roomName
+        - participantName
+        - participantIdentity
+        - sessionId
+      properties:
+        roomName:
+          type: string
+        participantName:
+          type: string
+        participantIdentity:
+          type: string
+        sessionId:
+          type: string
+
+paths:
+  /authentication:
+    post:
+      summary: User Login
+      operationId: loginUser
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        '201':
+          description: User successfully logged in
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthenticationResponse'
+        '401':
+          description: Unauthorized
+  /users:
+    post:
+      summary: User Registration
+      operationId: registerUser
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegisterRequest'
+      responses:
+        '201':
+          description: User successfully registered
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '409':
+          description: User with email already exists
+    get:
+      summary: Get All Users
+      operationId: getAllUsers
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: List of users
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/User'
+        '401':
+          description: Unauthorized
+  /sessions:
+    post:
+      summary: Create a new communication session
+      operationId: createSession
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateSessionRequest'
+      responses:
+        '201':
+          description: Session successfully created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Session'
+        '401':
+          description: Unauthorized
+    patch:
+      summary: Update a session
+      operationId: updateSession
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+          description: ID of the session to update
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateSessionRequest' # Re-using for simplicity, ideally a PatchSessionRequest
+      responses:
+        '200':
+          description: Session successfully updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Session'
+        '401':
+          description: Unauthorized
+        '403':
+          description: Forbidden (not host)
+        '404':
+          description: Session not found
+    delete:
+      summary: Delete a session
+      operationId: deleteSession
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+          description: ID of the session to delete
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Session successfully deleted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Session'
+        '401':
+          description: Unauthorized
+        '403':
+          description: Forbidden (not host)
+        '404':
+          description: Session not found
+  /livekit-token:
+    post:
+      summary: Generate LiveKit Token
+      operationId: generateLiveKitToken
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LiveKitTokenRequest'
+      responses:
+        '200':
+          description: LiveKit token successfully generated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  token:
+                    type: string
+                  wsUrl:
+                    type: string
+                  participantName:
+                    type: string
+                  participantIdentity:
+                    type: string
+        '401':
+          description: Unauthorized

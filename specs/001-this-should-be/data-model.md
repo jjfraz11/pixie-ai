@@ -1,33 +1,38 @@
-```prisma
-// This file represents the data model for the feature.
-// It uses Prisma schema syntax for clarity and to be used by the Prisma ORM.
+# Data Model
 
-datasource db {
-  provider = "postgresql" // A reasonable default, can be changed in .env
-  url      = env("DATABASE_URL")
-}
+## Entities
 
-generator client {
-  provider = "prisma-client-js"
-}
+### User
+*   **id**: String (Unique identifier)
+*   **email**: String (Unique, used for login)
+*   **password**: String (Hashed)
+*   **roles**: String[] (e.g., "user", "broadcaster", "admin")
+*   **createdAt**: DateTime
+*   **updatedAt**: DateTime
+*   **sessions**: Session[] (Relationship: User can host multiple Sessions)
 
-// Represents an authenticated user of the system.
-model User {
-  id        String   @id @default(cuid())
-  email     String   @unique
-  password  String   // Will be hashed by the Feathers.js authentication service
-  roles     String[] // Can contain roles like 'user', 'broadcaster'
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-}
+### Session
+*   **sessionId**: String (Unique identifier for the communication session)
+*   **type**: Enum (p2p, broadcast)
+*   **accessType**: Enum (public, private)
+*   **password**: String (Optional, for private sessions, hashed)
+*   **hostId**: String (Foreign key to User.id)
+*   **host**: User (Relationship: Session is hosted by one User)
+*   **participants**: Participant[] (List of active participants in the session)
+*   **createdAt**: DateTime
 
-// Represents a communication session, either P2P or broadcast.
-model Session {
-  id        String   @id @default(cuid())
-  // The type of session, e.g., "p2p" or "broadcast"
-  type      String
-  // The ID of the user who created the session
-  hostId    String
-  createdAt DateTime @default(now())
-}
-```
+### Participant
+*   **participantId**: String (Unique identifier for the user in the session)
+*   **name**: String (Display name for the user)
+*   **role**: Enum (host, guest, broadcaster, viewer)
+
+## Relationships
+
+*   **User to Session**: One-to-Many (One User can host many Sessions)
+*   **Session to User**: Many-to-One (Many Sessions can be hosted by one User)
+
+## Validation Rules
+
+### User Password
+*   Minimum length: 6 characters
+*   Complexity: At least one uppercase letter, one lowercase letter, one number, and one special character.

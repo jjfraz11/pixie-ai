@@ -14,6 +14,7 @@ tests/
 ## Directory Structure
 - **Components:**
     - Group related UI components together in a `components/` directory.
+    - UI components must be created separately from pages and imported into pages as needed.
     - For larger applications, consider further organizing components by feature or domain (e.g., `components/auth/`, `components/user/`).
     - Each component should ideally reside in its own directory, containing its code, styles, and tests.
 - **Tests:**
@@ -47,6 +48,9 @@ tests/
     - Aim for functions that are concise and easy to understand. If a function becomes too long or performs multiple unrelated operations, consider refactoring it into smaller, more specialized functions.
     - Promote code reuse by encapsulating common logic within functions.
     - Avoid deeply nested logic; extract inner blocks into separate functions where appropriate.
+- **React Component Best Practices (for .tsx and .jsx files):**
+    - Functions created inside components must be wrapped in `useCallback` to prevent unnecessary re-renders.
+    - Complex objects (functions, objects, or arrays) should not be passed directly as props. Instead, define an appropriate hook value (i.e., `useCallback` for functions, `useMemo` or `useState` for objects/arrays) and pass that value.
 
 ## Recent Changes
 - 001-this-should-be: Added

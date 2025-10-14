@@ -4,6 +4,8 @@ Auto-generated from all feature plans. Last updated: 2025-10-14
 
 ## Active Technologies
 - (001-this-should-be)
+- TypeScript (latest stable), Node.js (latest LTS) + Feathers.js v5, LiveKit, Next.js, React, Prisma, Tailwind CSS (001-this-should-be)
+- PostgreSQL (via Prisma) (001-this-should-be)
 
 ## Project Structure
 ```
@@ -18,6 +20,7 @@ tests/
 : Follow standard conventions
 
 ## Recent Changes
+- 001-this-should-be: Added TypeScript (latest stable), Node.js (latest LTS) + Feathers.js v5, LiveKit, Next.js, React, Prisma, Tailwind CSS
 - 001-this-should-be: Added
 
 <!-- MANUAL ADDITIONS START -->

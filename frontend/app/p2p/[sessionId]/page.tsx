@@ -1,159 +1,197 @@
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
-import { useParams, useRouter } from 'next/navigation';
+import { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import {
   LiveKitRoom,
   VideoConference,
-  ControlBar,
   RoomAudioRenderer,
+  useRoomContext,
+  useLocalParticipant,
+  useParticipants,
+  useTracks,
+  VideoTrack,
+  AudioTrack,
 } from '@livekit/components-react';
-import '@livekit/components-styles';
-import { useAuth } from '../../contexts/AuthContext';
+import { Room, RoomEvent, RemoteParticipant, LocalParticipant, Track } from 'livekit-client';
+import { useAuth } from '../../../contexts/AuthContext';
 
-interface LiveKitTokenData {
-  token: string;
-  wsUrl: string;
-  participantName: string;
-  participantIdentity: string;
+interface P2PPageProps {
+  params: { sessionId: string };
 }
 
-export default function P2PChatRoom() {
-  const params = useParams();
+export default function P2PPage({ params }: P2PPageProps) {
+  const { sessionId } = params;
+  const { user, token } = useAuth();
   const router = useRouter();
-  const { user, token: authToken } = useAuth();
-  const sessionId = params.sessionId as string;
-
-  const [liveKitToken, setLiveKitToken] = useState<LiveKitTokenData | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [livekitToken, setLivekitToken] = useState<string | null>(null);
+  const [wsUrl, setWsUrl] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-
-  const fetchLiveKitToken = useCallback(async () => {
-    try {
-      setLoading(true);
-      setError(null);
-
-      // In a real app, you'd get the room name from the session data
-      // For this demo, we'll use the sessionId as the room name
-      const roomName = `p2p-${sessionId}`;
-
-      const response = await fetch('/api/livekit-token', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${authToken}`,
-        },
-        body: JSON.stringify({
-          roomName,
-          participantName: user?.name || 'Anonymous User',
-          participantIdentity: user?.id || 'anonymous',
-          sessionId,
-        }),
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to get LiveKit token');
-      }
-
-      const tokenData = await response.json();
-      setLiveKitToken(tokenData);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to connect to video chat');
-      console.error('Error fetching LiveKit token:', err);
-    } finally {
-      setLoading(false);
-    }
-  }, [authToken, sessionId, user?.name, user?.id]);
+  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    if (authToken && sessionId) {
-      fetchLiveKitToken();
+    if (!user || !token) {
+      router.push('/'); // Redirect to login if not authenticated
+      return;
     }
-  }, [authToken, sessionId, fetchLiveKitToken]);
 
-  const handleLeaveRoom = () => {
-    router.push('/dashboard');
-  };
+    const fetchLivekitToken = async () => {
+      try {
+        setIsLoading(true);
+        setError(null);
 
-  if (loading) {
+        const response = await fetch('/api/livekit-token', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            roomName: `p2p-${sessionId}`,
+            participantName: user.email,
+            participantIdentity: user.id,
+            sessionId: sessionId,
+          }),
+        });
+
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(errorData.message || 'Failed to get LiveKit token');
+        }
+
+        const data = await response.json();
+        setLivekitToken(data.token);
+        setWsUrl(data.wsUrl);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'An error occurred while fetching LiveKit token');
+        console.error('Error fetching LiveKit token:', err);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchLivekitToken();
+  }, [sessionId, user, token, router]);
+
+  if (isLoading) {
     return (
-      <div className="min-h-screen bg-gray-900 flex items-center justify-center">
-        <div className="text-center text-white">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-white mx-auto mb-4"></div>
-          <p>Connecting to video chat...</p>
-        </div>
+      <div className="flex items-center justify-center min-h-screen bg-gray-900 text-white">
+        <div className="text-lg">Connecting to session...</div>
       </div>
     );
   }
 
   if (error) {
     return (
-      <div className="min-h-screen bg-gray-900 flex items-center justify-center">
-        <div className="text-center text-white">
-          <p className="text-red-400 mb-4">Error: {error}</p>
-          <div className="space-x-4">
-            <button
-              onClick={fetchLiveKitToken}
-              className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
-            >
-              Retry
-            </button>
-            <button
-              onClick={handleLeaveRoom}
-              className="px-4 py-2 bg-gray-600 text-white rounded hover:bg-gray-700"
-            >
-              Leave Room
-            </button>
-          </div>
-        </div>
+      <div className="flex items-center justify-center min-h-screen bg-red-900 text-white">
+        <div className="text-lg">Error: {error}</div>
       </div>
     );
   }
 
-  if (!liveKitToken) {
+  if (!livekitToken || !wsUrl) {
     return (
-      <div className="min-h-screen bg-gray-900 flex items-center justify-center">
-        <div className="text-center text-white">
-          <p>Failed to get video chat token</p>
-          <button
-            onClick={handleLeaveRoom}
-            className="mt-4 px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
-          >
-            Go Back
-          </button>
-        </div>
+      <div className="flex items-center justify-center min-h-screen bg-gray-900 text-white">
+        <div className="text-lg">Authentication failed or token not available.</div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gray-900">
+    <div className="min-h-screen bg-gray-900 text-white flex flex-col">
       <LiveKitRoom
-        serverUrl={liveKitToken.wsUrl}
-        token={liveKitToken.token}
+        video={true}
+        audio={true}
+        token={livekitToken}
+        serverUrl={wsUrl}
         connect={true}
+        data-lk-theme="default"
         onDisconnected={() => {
           console.log('Disconnected from LiveKit room');
-          router.push('/dashboard');
+          router.push('/'); // Redirect to home on disconnect
         }}
       >
-        <div className="relative h-screen">
-          <VideoConference />
-          <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2">
-            <ControlBar />
-          </div>
-        </div>
+        <P2PChatUI sessionId={sessionId} />
         <RoomAudioRenderer />
       </LiveKitRoom>
+    </div>
+  );
+}
 
-      {/* Custom leave button */}
-      <button
-        onClick={handleLeaveRoom}
-        className="absolute top-4 right-4 px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700 z-50"
-      >
-        Leave Room
-      </button>
+interface P2PChatUIProps {
+  sessionId: string;
+}
+
+function P2PChatUI({ sessionId }: P2PChatUIProps) {
+  const room = useRoomContext();
+  const { localParticipant } = useLocalParticipant();
+  const participants = useParticipants();
+  const router = useRouter();
+
+  const remoteParticipants = participants.filter(p => p.identity !== localParticipant.identity);
+
+  const handleToggleCamera = async () => {
+    if (localParticipant.cameraPublication) {
+      await localParticipant.setCameraEnabled(!localParticipant.cameraPublication.track?.isEnabled);
+    }
+  };
+
+  const handleToggleMicrophone = async () => {
+    if (localParticipant.microphonePublication) {
+      await localParticipant.setMicrophoneEnabled(!localParticipant.microphonePublication.track?.isEnabled);
+    }
+  };
+
+  const handleLeaveSession = async () => {
+    await room.disconnect();
+    router.push('/');
+  };
+
+  return (
+    <div className="flex flex-col h-screen">
+      <header className="bg-gray-800 p-4 flex justify-between items-center">
+        <h1 className="text-xl font-bold">P2P Session: {sessionId}</h1>
+        <div className="space-x-2">
+          <button
+            onClick={handleToggleCamera}
+            className="px-3 py-1 rounded-md bg-blue-600 hover:bg-blue-700 text-white"
+          >
+            Toggle Camera
+          </button>
+          <button
+            onClick={handleToggleMicrophone}
+            className="px-3 py-1 rounded-md bg-blue-600 hover:bg-blue-700 text-white"
+          >
+            Toggle Microphone
+          </button>
+          <button
+            onClick={handleLeaveSession}
+            className="px-3 py-1 rounded-md bg-red-600 hover:bg-red-700 text-white"
+          >
+            Leave Session
+          </button>
+        </div>
+      </header>
+
+      <div className="flex-1 grid grid-cols-1 md:grid-cols-2 gap-4 p-4">
+        {/* Local Participant */}
+        <div className="bg-gray-800 rounded-lg overflow-hidden relative">
+          <VideoConference room={room} />
+          <div className="absolute bottom-2 left-2 bg-black bg-opacity-50 px-2 py-1 rounded-md text-sm">
+            {localParticipant.identity} (You)
+          </div>
+        </div>
+
+        {/* Remote Participants */}
+        {remoteParticipants.map((participant) => (
+          <div key={participant.identity} className="bg-gray-800 rounded-lg overflow-hidden relative">
+            <VideoConference room={room} />
+            <div className="absolute bottom-2 left-2 bg-black bg-opacity-50 px-2 py-1 rounded-md text-sm">
+              {participant.identity}
+            </div>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
