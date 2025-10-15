@@ -1,11 +1,35 @@
 openapi: 3.0.0
 info:
-  title: Real-time Communication Platform API
+  title: Real-time Communication Platform API - Phase 1
   version: 1.0.0
-  description: API for managing users, authentication, and real-time communication sessions.
+  description: |
+    Comprehensive API for managing users, authentication, and real-time communication sessions.
+
+    ## Features
+    - **Authentication & Authorization**: JWT-based auth with role-based access control
+    - **Session Management**: Create, join, and manage P2P and broadcast sessions
+    - **Real-time Communication**: LiveKit integration for WebRTC streaming
+    - **Security**: Password policies, rate limiting, and audit trails
+    - **Performance**: Optimized for <200ms P2P latency and <10s broadcast sync
+
+    ## Authentication
+    All endpoints (except registration and login) require JWT Bearer authentication.
+    Include the token in the Authorization header: `Authorization: Bearer <token>`
+
+    ## Error Handling
+    All endpoints return appropriate HTTP status codes with detailed error information.
+    Error responses follow the RFC 7807 Problem Details format.
+  contact:
+    name: API Support
+    email: support@pixie-ai.com
+  license:
+    name: MIT
+    url: https://opensource.org/licenses/MIT
 servers:
   - url: http://localhost:3030
-    description: FeathersJS Backend Server
+    description: FeathersJS Backend Server (Development)
+  - url: https://api.pixie-ai.com
+    description: Production API Server
   - url: http://localhost:3000/api
     description: Next.js Frontend API Routes (Proxy to Backend)
 
@@ -15,47 +39,179 @@ components:
       type: http
       scheme: bearer
       bearerFormat: JWT
+      description: JWT Authorization header using the Bearer scheme
+    apiKeyAuth:
+      type: apiKey
+      in: header
+      name: X-API-Key
+      description: API Key authentication for service accounts
+
   schemas:
+    # User Management Schemas
     User:
       type: object
       properties:
         id:
           type: string
           format: cuid
+          description: Unique user identifier
+          example: "cl1h3k8k50000f4qjv9n2x1z8"
         email:
           type: string
           format: email
+          description: User's email address
+          example: "user@example.com"
         roles:
           type: array
           items:
             type: string
+            enum: ["user", "broadcaster", "admin"]
+          description: User role assignments
+          example: ["user"]
+        isActive:
+          type: boolean
+          description: Account activation status
+          example: true
+        emailVerified:
+          type: boolean
+          description: Email verification status
+          example: true
+        lastLoginAt:
+          type: string
+          format: date-time
+          nullable: true
+          description: Last successful login timestamp
+        loginAttempts:
+          type: integer
+          minimum: 0
+          maximum: 5
+          description: Failed login attempt counter
+          example: 0
         createdAt:
           type: string
           format: date-time
+          description: Account creation timestamp
         updatedAt:
           type: string
           format: date-time
+          description: Last modification timestamp
+      required:
+        - id
+        - email
+        - roles
+        - isActive
+        - createdAt
+        - updatedAt
+
+    # Session Management Schemas
     Session:
       type: object
       properties:
         id:
           type: string
           format: cuid
+          description: Unique session identifier
+          example: "cl1h3k8k50001f4qjv9n2x1z9"
         type:
           type: string
-          enum: [p2p, broadcast]
+          enum: ["p2p", "broadcast"]
+          description: Communication session type
+          example: "broadcast"
+        title:
+          type: string
+          maxLength: 100
+          description: Human-readable session name
+          example: "Team Standup Meeting"
+        description:
+          type: string
+          maxLength: 500
+          nullable: true
+          description: Session description
+          example: "Weekly team synchronization meeting"
         accessType:
           type: string
-          enum: [public, private]
-        password:
+          enum: ["public", "private"]
+          description: Session access control
+          example: "public"
+        status:
           type: string
-          nullable: true
+          enum: ["initializing", "active", "paused", "ended"]
+          description: Current session state
+          example: "active"
+        maxParticipants:
+          type: integer
+          minimum: 2
+          maximum: 100
+          description: Maximum allowed participants
+          example: 10
+        currentParticipants:
+          type: integer
+          minimum: 0
+          description: Current participant count
+          example: 5
         hostId:
           type: string
           format: cuid
+          description: Session host user ID
+          example: "cl1h3k8k50000f4qjv9n2x1z8"
+        settings:
+          type: object
+          properties:
+            videoQuality:
+              type: string
+              enum: ["low", "medium", "high", "auto"]
+              default: "auto"
+            audioQuality:
+              type: string
+              enum: ["low", "medium", "high"]
+              default: "high"
+            enableRecording:
+              type: boolean
+              default: false
+            enableScreenShare:
+              type: boolean
+              default: true
+            enableChat:
+              type: boolean
+              default: true
+            maxVideoBitrate:
+              type: integer
+              minimum: 100000
+              maximum: 5000000
+              default: 1000000
+        liveKitRoomId:
+          type: string
+          pattern: "^[a-z0-9-]+$"
+          nullable: true
+          description: LiveKit room identifier
+        startedAt:
+          type: string
+          format: date-time
+          nullable: true
+          description: Session start timestamp
+        endedAt:
+          type: string
+          format: date-time
+          nullable: true
+          description: Session end timestamp
         createdAt:
           type: string
           format: date-time
+          description: Session creation timestamp
+        updatedAt:
+          type: string
+          format: date-time
+          description: Last modification timestamp
+      required:
+        - id
+        - type
+        - status
+        - maxParticipants
+        - hostId
+        - createdAt
+        - updatedAt
+
+    # Authentication Schemas
     LoginRequest:
       type: object
       required:
@@ -65,51 +221,194 @@ components:
         email:
           type: string
           format: email
+          maxLength: 254
+          description: User's registered email address
+          example: "user@example.com"
         password:
           type: string
+          minLength: 1
+          description: User's password
+          example: "securePassword123!"
+        deviceInfo:
+          type: object
+          properties:
+            userAgent:
+              type: string
+              maxLength: 500
+              example: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+            fingerprint:
+              type: string
+              maxLength: 64
+              example: "abc123def456"
+            ipAddress:
+              type: string
+              format: ipv4
+              example: "192.168.1.100"
+        rememberMe:
+          type: boolean
+          default: false
+          description: Extended session duration if true
+
     RegisterRequest:
       type: object
       required:
         - email
         - password
+        - confirmPassword
       properties:
         email:
           type: string
           format: email
+          maxLength: 254
+          description: User's email address
+          example: "newuser@example.com"
         password:
           type: string
-          minLength: 6
-          pattern: "^(?=.*[a-z])(?=.*[A-Z])(?=.*\\d)(?=.*[@$!%*?&])[A-Za-z\\d@$!%*?&]{6,}$"
+          minLength: 12
+          maxLength: 128
+          pattern: "^(?=.*[a-z])(?=.*[A-Z])(?=.*\\d)(?=.*[@$!%*?&])[A-Za-z\\d@$!%*?&]+$"
+          description: Strong password meeting complexity requirements
+          example: "SecurePass123!"
+        confirmPassword:
+          type: string
+          minLength: 12
+          maxLength: 128
+          description: Password confirmation
+          example: "SecurePass123!"
         roles:
           type: array
           items:
             type: string
+            enum: ["user", "broadcaster"]
           default: ["user"]
+          maxItems: 2
+          description: Initial user roles (admin role requires invitation)
+        captchaToken:
+          type: string
+          minLength: 1
+          description: CAPTCHA verification token
+
     AuthenticationResponse:
       type: object
       properties:
         accessToken:
           type: string
-        authentication:
+          description: JWT access token
+          example: "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9..."
+        refreshToken:
+          type: string
+          description: Refresh token for extended sessions
+          example: "refresh_token_abc123def456"
+        expiresIn:
+          type: integer
+          minimum: 60
+          maximum: 900
+          description: Access token expiration in seconds
+          example: 900
+        tokenType:
+          type: string
+          enum: ["Bearer"]
+          description: Token type identifier
+          example: "Bearer"
+        user:
+          $ref: "#/components/schemas/User"
+      required:
+        - accessToken
+        - tokenType
+        - user
+
+    PasswordResetRequest:
+      type: object
+      required:
+        - email
+      properties:
+        email:
+          type: string
+          format: email
+          maxLength: 254
+          description: Email address for password reset
+          example: "user@example.com"
+        captchaToken:
+          type: string
+          minLength: 1
+          description: CAPTCHA verification token
+
+    PasswordResetResponse:
+      type: object
+      properties:
+        message:
+          type: string
+          description: Success message
+          example: "Password reset email sent"
+        resetToken:
+          type: string
+          description: Reset token (development only)
+          example: "reset_token_abc123"
+
+    PasswordResetConfirmRequest:
+      type: object
+      required:
+        - token
+        - password
+        - confirmPassword
+      properties:
+        token:
+          type: string
+          pattern: "^[A-Za-z0-9_-]+$"
+          minLength: 32
+          maxLength: 64
+          description: Password reset token from email
+          example: "reset_token_abc123def456"
+        password:
+          type: string
+          minLength: 12
+          maxLength: 128
+          pattern: "^(?=.*[a-z])(?=.*[A-Z])(?=.*\\d)(?=.*[@$!%*?&])[A-Za-z\\d@$!%*?&]+$"
+          description: New password meeting complexity requirements
+          example: "NewSecurePass123!"
+        confirmPassword:
+          type: string
+          minLength: 12
+          maxLength: 128
+          description: Password confirmation
+          example: "NewSecurePass123!"
+
+    RefreshTokenRequest:
+      type: object
+      required:
+        - refreshToken
+      properties:
+        refreshToken:
+          type: string
+          pattern: "^[A-Za-z0-9_-]+$"
+          minLength: 32
+          maxLength: 64
+          description: Valid refresh token
+          example: "refresh_token_abc123def456"
+        deviceInfo:
           type: object
           properties:
-            strategy:
+            userAgent:
               type: string
-            payload:
-              type: object
-              properties:
-                iat:
-                  type: integer
-                exp:
-                  type: integer
-                aud:
-                  type: string
-                iss:
-                  type: string
-                jti:
-                  type: string
-        user:
-          $ref: '#/components/schemas/User'
+              maxLength: 500
+            fingerprint:
+              type: string
+              maxLength: 64
+
+    EmailVerificationRequest:
+      type: object
+      required:
+        - token
+      properties:
+        token:
+          type: string
+          pattern: "^[A-Za-z0-9_-]+$"
+          minLength: 32
+          maxLength: 64
+          description: Email verification token
+          example: "verify_token_abc123def456"
+
+    # Session Management Schemas
     CreateSessionRequest:
       type: object
       required:
@@ -117,192 +416,1668 @@ components:
       properties:
         type:
           type: string
-          enum: [p2p, broadcast]
+          enum: ["p2p", "broadcast"]
+          description: Communication session type
+          example: "broadcast"
         title:
           type: string
+          minLength: 1
+          maxLength: 100
+          pattern: "^[\\w\\s\\p{P}\\p{S}]+$"
+          description: Human-readable session name
+          example: "Team Standup"
+        description:
+          type: string
+          maxLength: 500
+          pattern: "^[\\w\\s\\p{P}\\p{S}]*$"
+          description: Optional session description
+          example: "Daily team synchronization"
         accessType:
           type: string
-          enum: [public, private]
-          default: public
+          enum: ["public", "private"]
+          default: "public"
+          description: Session access control
         password:
           type: string
+          minLength: 8
+          maxLength: 64
+          pattern: "^[A-Za-z\\d@$!%*?&]+$"
+          description: Password for private sessions
+          example: "sessionPass123"
+        maxParticipants:
+          type: integer
+          minimum: 2
+          maximum: 100
+          default: 10
+          description: Maximum number of participants
+        settings:
+          type: object
+          properties:
+            videoQuality:
+              type: string
+              enum: ["low", "medium", "high", "auto"]
+              default: "auto"
+            audioQuality:
+              type: string
+              enum: ["low", "medium", "high"]
+              default: "high"
+            enableRecording:
+              type: boolean
+              default: false
+            enableScreenShare:
+              type: boolean
+              default: true
+            enableChat:
+              type: boolean
+              default: true
+            maxVideoBitrate:
+              type: integer
+              minimum: 100000
+              maximum: 5000000
+              default: 1000000
+        scheduledFor:
+          type: string
+          format: date-time
+          description: Optional scheduled start time
+        duration:
+          type: integer
+          minimum: 300
+          maximum: 28800
+          description: Session duration in seconds (5 minutes to 8 hours)
+
+    UpdateSessionRequest:
+      type: object
+      properties:
+        title:
+          type: string
+          minLength: 1
+          maxLength: 100
+          pattern: "^[\\w\\s\\p{P}\\p{S}]+$"
+          description: Updated session title
+        description:
+          type: string
+          maxLength: 500
+          pattern: "^[\\w\\s\\p{P}\\p{S}]*$"
+          description: Updated session description
+        accessType:
+          type: string
+          enum: ["public", "private"]
+          description: Updated access control
+        password:
+          type: string
+          minLength: 8
+          maxLength: 64
+          pattern: "^[A-Za-z\\d@$!%*?&]+$"
+          description: Updated password for private sessions
+        maxParticipants:
+          type: integer
+          minimum: 2
+          maximum: 100
+          description: Updated maximum participants
+        settings:
+          type: object
+          properties:
+            videoQuality:
+              type: string
+              enum: ["low", "medium", "high", "auto"]
+            audioQuality:
+              type: string
+              enum: ["low", "medium", "high"]
+            enableRecording:
+              type: boolean
+            enableScreenShare:
+              type: boolean
+            enableChat:
+              type: boolean
+            maxVideoBitrate:
+              type: integer
+              minimum: 100000
+              maximum: 5000000
+
+    # Participant Management Schemas
+    ParticipantJoinRequest:
+      type: object
+      required:
+        - sessionId
+        - participantIdentity
+      properties:
+        sessionId:
+          type: string
+          pattern: "^[a-z0-9]+$"
+          description: Session to join
+          example: "cl1h3k8k50001f4qjv9n2x1z9"
+        participantIdentity:
+          type: string
+          minLength: 1
+          maxLength: 50
+          pattern: "^[a-z0-9_-]+$"
+          description: Unique identifier for this participant
+          example: "user_123"
+        displayName:
+          type: string
+          minLength: 1
+          maxLength: 50
+          pattern: "^[\\w\\s\\p{L}\\p{N}\\p{P}]+$"
+          description: Display name in the session
+          example: "John Doe"
+        role:
+          type: string
+          enum: ["host", "broadcaster", "viewer", "guest"]
+          default: "viewer"
+          description: Participant role and permissions
+        password:
+          type: string
+          minLength: 8
+          maxLength: 64
+          pattern: "^[A-Za-z\\d@$!%*?&]+$"
+          description: Session password if required
+        deviceInfo:
+          type: object
+          properties:
+            userAgent:
+              type: string
+              maxLength: 500
+            platform:
+              type: string
+              enum: ["web", "mobile", "desktop"]
+            sdkVersion:
+              type: string
+              maxLength: 20
+            capabilities:
+              type: object
+              properties:
+                audio:
+                  type: boolean
+                  default: true
+                video:
+                  type: boolean
+                  default: true
+                screenShare:
+                  type: boolean
+                  default: true
+        initialSettings:
+          type: object
+          properties:
+            isAudioEnabled:
+              type: boolean
+              default: true
+            isVideoEnabled:
+              type: boolean
+              default: true
+            isScreenShareEnabled:
+              type: boolean
+              default: false
+
+    ParticipantResponse:
+      type: object
+      properties:
+        id:
+          type: string
+          pattern: "^[a-z0-9]+$"
+        sessionId:
+          type: string
+          pattern: "^[a-z0-9]+$"
+        userId:
+          type: string
+          pattern: "^[a-z0-9]+$"
           nullable: true
+        participantIdentity:
+          type: string
+          maxLength: 50
+        displayName:
+          type: string
+          maxLength: 50
+        role:
+          type: string
+          enum: ["host", "broadcaster", "viewer", "guest"]
+        status:
+          type: string
+          enum: ["connecting", "connected", "disconnected", "kicked"]
+        permissions:
+          type: array
+          items:
+            type: string
+        joinedAt:
+          type: string
+          format: date-time
+        leftAt:
+          type: string
+          format: date-time
+          nullable: true
+        lastActivityAt:
+          type: string
+          format: date-time
+        isAudioEnabled:
+          type: boolean
+        isVideoEnabled:
+          type: boolean
+        isScreenShareEnabled:
+          type: boolean
+        connectionQuality:
+          type: string
+          enum: ["excellent", "good", "poor"]
+        deviceInfo:
+          type: object
+      required:
+        - id
+        - sessionId
+        - participantIdentity
+        - displayName
+        - role
+        - status
+        - joinedAt
+
+    # LiveKit Integration Schemas
     LiveKitTokenRequest:
       type: object
       required:
-        - roomName
-        - participantName
-        - participantIdentity
         - sessionId
+        - participantIdentity
       properties:
-        roomName:
-          type: string
-        participantName:
-          type: string
-        participantIdentity:
-          type: string
         sessionId:
           type: string
+          pattern: "^[a-z0-9]+$"
+          description: Session identifier
+          example: "cl1h3k8k50001f4qjv9n2x1z9"
+        participantIdentity:
+          type: string
+          minLength: 1
+          maxLength: 50
+          pattern: "^[a-z0-9_-]+$"
+          description: Participant identity for LiveKit
+          example: "user_123"
+        participantName:
+          type: string
+          minLength: 1
+          maxLength: 50
+          pattern: "^[\\w\\s\\p{L}\\p{N}\\p{P}]+$"
+          description: Human-readable participant name
+          example: "John Doe"
+        role:
+          type: string
+          enum: ["host", "broadcaster", "viewer", "guest"]
+          default: "viewer"
+          description: Participant role in the session
+        permissions:
+          type: array
+          items:
+            type: string
+            enum:
+              [
+                "canPublish",
+                "canSubscribe",
+                "canPublishData",
+                "canUpdateMetadata",
+              ]
+          default: ["canSubscribe"]
+          description: LiveKit-specific permissions
+        metadata:
+          type: object
+          properties:
+            userId:
+              type: string
+              pattern: "^[a-z0-9]+$"
+            sessionId:
+              type: string
+              pattern: "^[a-z0-9]+$"
+            deviceInfo:
+              type: object
+        ttl:
+          type: integer
+          minimum: 300
+          maximum: 86400
+          default: 3600
+          description: Token time-to-live in seconds
+
+    LiveKitTokenResponse:
+      type: object
+      properties:
+        token:
+          type: string
+          description: JWT token for LiveKit authentication
+          example: "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9..."
+        wsUrl:
+          type: string
+          format: uri
+          pattern: "^wss://.*livekit.*$"
+          description: WebSocket URL for LiveKit server
+          example: "wss://livekit.example.com"
+        participantIdentity:
+          type: string
+          maxLength: 50
+          description: Participant identity used in token
+        participantName:
+          type: string
+          maxLength: 50
+          description: Participant name used in token
+        serverVersion:
+          type: string
+          description: LiveKit server version
+          example: "1.5.2"
+        iceServers:
+          type: array
+          items:
+            type: object
+            properties:
+              urls:
+                type: array
+                items:
+                  type: string
+              username:
+                type: string
+              credential:
+                type: string
+        expiresAt:
+          type: string
+          format: date-time
+          description: Token expiration timestamp
+      required:
+        - token
+        - wsUrl
+        - participantIdentity
+        - expiresAt
+
+    # Error Response Schemas
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: object
+          properties:
+            code:
+              type: string
+              description: Error code identifier
+              example: "VALIDATION_ERROR"
+            message:
+              type: string
+              description: Human-readable error message
+              example: "Invalid input data"
+            details:
+              type: object
+              description: Detailed error information
+              additionalProperties: true
+            correlationId:
+              type: string
+              pattern: "^[a-z0-9-]+$"
+              description: Request correlation identifier
+            timestamp:
+              type: string
+              format: date-time
+              description: Error timestamp
+            path:
+              type: string
+              description: Request path that caused the error
+              example: "/api/sessions"
+            method:
+              type: string
+              description: HTTP method that caused the error
+              example: "POST"
+      required:
+        - error
+
+    ValidationErrorResponse:
+      type: object
+      properties:
+        error:
+          type: object
+          properties:
+            code:
+              type: string
+              enum: ["VALIDATION_ERROR"]
+            message:
+              type: string
+              example: "Request validation failed"
+            details:
+              type: object
+              properties:
+                field:
+                  type: string
+                  description: Field that failed validation
+                  example: "email"
+                issues:
+                  type: array
+                  items:
+                    type: string
+                  description: Specific validation errors
+                  example: ["Email format is invalid", "Email is required"]
+                received:
+                  type: string
+                  description: The value that was received
+                  example: "invalid-email"
+            correlationId:
+              type: string
+            timestamp:
+              type: string
+              format: date-time
+      required:
+        - error
+
+    # Pagination Schemas
+    PaginationParams:
+      type: object
+      properties:
+        page:
+          type: integer
+          minimum: 1
+          default: 1
+          description: Page number for pagination
+        limit:
+          type: integer
+          minimum: 1
+          maximum: 100
+          default: 20
+          description: Number of items per page
+        sort:
+          type: string
+          description: Sort field and direction (e.g., "createdAt:-1")
+          example: "createdAt:-1"
+        filter:
+          type: object
+          description: Filter criteria
+          additionalProperties: true
+
+    PaginatedResponse:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            oneOf:
+              - $ref: "#/components/schemas/User"
+              - $ref: "#/components/schemas/Session"
+          description: Array of requested data
+        pagination:
+          type: object
+          properties:
+            page:
+              type: integer
+              description: Current page number
+            limit:
+              type: integer
+              description: Items per page
+            total:
+              type: integer
+              description: Total number of items
+            totalPages:
+              type: integer
+              description: Total number of pages
+            hasNext:
+              type: boolean
+              description: Whether there is a next page
+            hasPrev:
+              type: boolean
+              description: Whether there is a previous page
+          required:
+            - page
+            - limit
+            - total
+            - totalPages
+            - hasNext
+            - hasPrev
+      required:
+        - data
+        - pagination
 
 paths:
+  # Authentication Endpoints
   /authentication:
     post:
       summary: User Login
+      description: |
+        Authenticate user with email and password.
+        Returns JWT access token and refresh token for subsequent API calls.
       operationId: loginUser
+      tags:
+        - Authentication
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/LoginRequest'
+              $ref: "#/components/schemas/LoginRequest"
+            example:
+              email: "user@example.com"
+              password: "SecurePass123!"
+              deviceInfo:
+                userAgent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+                fingerprint: "abc123def456"
+              rememberMe: false
       responses:
-        '201':
+        "200":
           description: User successfully logged in
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/AuthenticationResponse'
-        '401':
-          description: Unauthorized
-  /users:
+                $ref: "#/components/schemas/AuthenticationResponse"
+              example:
+                accessToken: "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9..."
+                refreshToken: "refresh_token_abc123def456"
+                expiresIn: 900
+                tokenType: "Bearer"
+                user:
+                  id: "cl1h3k8k50000f4qjv9n2x1z8"
+                  email: "user@example.com"
+                  roles: ["user"]
+                  isActive: true
+                  emailVerified: true
+                  createdAt: "2024-01-15T10:30:00Z"
+        "400":
+          description: Bad request - validation error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ValidationErrorResponse"
+        "401":
+          description: Unauthorized - invalid credentials
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "429":
+          description: Too many requests - rate limit exceeded
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /authentication/refresh:
     post:
-      summary: User Registration
-      operationId: registerUser
+      summary: Refresh Access Token
+      description: |
+        Generate new access token using valid refresh token.
+        Refresh tokens are automatically rotated for security.
+      operationId: refreshToken
+      tags:
+        - Authentication
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/RegisterRequest'
+              $ref: "#/components/schemas/RefreshTokenRequest"
+            example:
+              refreshToken: "refresh_token_abc123def456"
+              deviceInfo:
+                userAgent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
       responses:
-        '201':
-          description: User successfully registered
+        "200":
+          description: Token successfully refreshed
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/User'
-        '409':
-          description: User with email already exists
-    get:
-      summary: Get All Users
-      operationId: getAllUsers
-      security:
-        - bearerAuth: []
-      responses:
-        '200':
-          description: List of users
+                $ref: "#/components/schemas/AuthenticationResponse"
+        "400":
+          description: Bad request - invalid refresh token
           content:
             application/json:
               schema:
-                type: array
-                items:
-                  $ref: '#/components/schemas/User'
-        '401':
-          description: Unauthorized
-  /sessions:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Unauthorized - refresh token expired or invalid
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /authentication/logout:
     post:
-      summary: Create a new communication session
-      operationId: createSession
-      security:
-        - bearerAuth: []
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/CreateSessionRequest'
-      responses:
-        '201':
-          description: Session successfully created
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Session'
-        '401':
-          description: Unauthorized
-    patch:
-      summary: Update a session
-      operationId: updateSession
-      parameters:
-        - in: path
-          name: id
-          required: true
-          schema:
-            type: string
-          description: ID of the session to update
-      security:
-        - bearerAuth: []
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/CreateSessionRequest' # Re-using for simplicity, ideally a PatchSessionRequest
-      responses:
-        '200':
-          description: Session successfully updated
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Session'
-        '401':
-          description: Unauthorized
-        '403':
-          description: Forbidden (not host)
-        '404':
-          description: Session not found
-    delete:
-      summary: Delete a session
-      operationId: deleteSession
-      parameters:
-        - in: path
-          name: id
-          required: true
-          schema:
-            type: string
-          description: ID of the session to delete
+      summary: User Logout
+      description: |
+        Invalidate current access token and refresh token.
+        Client should discard tokens after successful logout.
+      operationId: logoutUser
+      tags:
+        - Authentication
       security:
         - bearerAuth: []
       responses:
-        '200':
-          description: Session successfully deleted
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Session'
-        '401':
-          description: Unauthorized
-        '403':
-          description: Forbidden (not host)
-        '404':
-          description: Session not found
-  /livekit-token:
-    post:
-      summary: Generate LiveKit Token
-      operationId: generateLiveKitToken
-      security:
-        - bearerAuth: []
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/LiveKitTokenRequest'
-      responses:
-        '200':
-          description: LiveKit token successfully generated
+        "200":
+          description: User successfully logged out
           content:
             application/json:
               schema:
                 type: object
                 properties:
-                  token:
+                  message:
                     type: string
-                  wsUrl:
-                    type: string
-                  participantName:
-                    type: string
-                  participantIdentity:
-                    type: string
-        '401':
+                    example: "Successfully logged out"
+        "401":
+          description: Unauthorized - invalid or expired token
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  # User Management Endpoints
+  /users:
+    post:
+      summary: User Registration
+      description: |
+        Register new user account with email and password.
+        Sends email verification token to provided email address.
+      operationId: registerUser
+      tags:
+        - Users
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RegisterRequest"
+            example:
+              email: "newuser@example.com"
+              password: "SecurePass123!"
+              confirmPassword: "SecurePass123!"
+              roles: ["user"]
+              captchaToken: "captcha_token_abc123"
+      responses:
+        "201":
+          description: User successfully registered
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+              example:
+                id: "cl1h3k8k50002f4qjv9n2x1z9"
+                email: "newuser@example.com"
+                roles: ["user"]
+                isActive: true
+                emailVerified: false
+                createdAt: "2024-01-15T10:30:00Z"
+        "400":
+          description: Bad request - validation error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ValidationErrorResponse"
+        "409":
+          description: Conflict - user with email already exists
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "429":
+          description: Too many requests - rate limit exceeded
+
+    get:
+      summary: Get Users
+      description: |
+        Retrieve list of users with optional filtering and pagination.
+        Requires admin role or appropriate permissions.
+      operationId: getUsers
+      tags:
+        - Users
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: page
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+          description: Page number for pagination
+        - in: query
+          name: limit
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+          description: Number of items per page
+        - in: query
+          name: roles
+          schema:
+            type: array
+            items:
+              type: string
+              enum: ["user", "broadcaster", "admin"]
+          description: Filter by user roles
+        - in: query
+          name: isActive
+          schema:
+            type: boolean
+          description: Filter by account status
+        - in: query
+          name: emailVerified
+          schema:
+            type: boolean
+          description: Filter by email verification status
+        - in: query
+          name: sort
+          schema:
+            type: string
+            default: "createdAt:-1"
+          description: Sort field and direction
+      responses:
+        "200":
+          description: List of users retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PaginatedResponse"
+              example:
+                data:
+                  - id: "cl1h3k8k50000f4qjv9n2x1z8"
+                    email: "user@example.com"
+                    roles: ["user"]
+                    isActive: true
+                    emailVerified: true
+                    createdAt: "2024-01-15T10:30:00Z"
+                pagination:
+                  page: 1
+                  limit: 20
+                  total: 1
+                  totalPages: 1
+                  hasNext: false
+                  hasPrev: false
+        "400":
+          description: Bad request - invalid query parameters
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Unauthorized - invalid or missing token
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Forbidden - insufficient permissions
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /users/{id}:
+    get:
+      summary: Get User by ID
+      description: |
+        Retrieve specific user information by user ID.
+        Users can only access their own information unless they have admin privileges.
+      operationId: getUserById
+      tags:
+        - Users
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+            pattern: "^[a-z0-9]+$"
+          description: User ID
+          example: "cl1h3k8k50000f4qjv9n2x1z8"
+      responses:
+        "200":
+          description: User retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+        "401":
           description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Forbidden - cannot access other users' data
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: User not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /users/{id}/verify-email:
+    post:
+      summary: Verify User Email
+      description: |
+        Verify user email address using verification token sent via email.
+        Token expires after 24 hours.
+      operationId: verifyUserEmail
+      tags:
+        - Users
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+            pattern: "^[a-z0-9]+$"
+          description: User ID
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EmailVerificationRequest"
+      responses:
+        "200":
+          description: Email successfully verified
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+        "400":
+          description: Bad request - invalid token
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: User not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  # Password Management Endpoints
+  /password-reset:
+    post:
+      summary: Request Password Reset
+      description: |
+        Send password reset email to user with reset token.
+        Token is valid for 1 hour.
+      operationId: requestPasswordReset
+      tags:
+        - Authentication
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PasswordResetRequest"
+            example:
+              email: "user@example.com"
+              captchaToken: "captcha_token_abc123"
+      responses:
+        "200":
+          description: Password reset email sent successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PasswordResetResponse"
+        "400":
+          description: Bad request - validation error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ValidationErrorResponse"
+        "429":
+          description: Too many requests - rate limit exceeded
+
+  /password-reset/confirm:
+    post:
+      summary: Confirm Password Reset
+      description: |
+        Reset user password using token from email.
+        Token must be used within 1 hour of request.
+      operationId: confirmPasswordReset
+      tags:
+        - Authentication
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PasswordResetConfirmRequest"
+            example:
+              token: "reset_token_abc123def456"
+              password: "NewSecurePass123!"
+              confirmPassword: "NewSecurePass123!"
+      responses:
+        "200":
+          description: Password successfully reset
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "Password successfully reset"
+        "400":
+          description: Bad request - invalid token or password mismatch
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Unauthorized - expired or invalid reset token
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /users/{id}/password:
+    put:
+      summary: Change User Password
+      description: |
+        Change user password (requires current password verification).
+        Only users can change their own password, admins can change any password.
+      operationId: changeUserPassword
+      tags:
+        - Users
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+            pattern: "^[a-z0-9]+$"
+          description: User ID
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - currentPassword
+                - newPassword
+                - confirmPassword
+              properties:
+                currentPassword:
+                  type: string
+                  minLength: 1
+                  description: Current password for verification
+                newPassword:
+                  type: string
+                  minLength: 12
+                  maxLength: 128
+                  pattern: "^(?=.*[a-z])(?=.*[A-Z])(?=.*\\d)(?=.*[@$!%*?&])[A-Za-z\\d@$!%*?&]+$"
+                  description: New password meeting complexity requirements
+                confirmPassword:
+                  type: string
+                  minLength: 12
+                  maxLength: 128
+                  description: Password confirmation
+            example:
+              currentPassword: "OldSecurePass123!"
+              newPassword: "NewSecurePass123!"
+              confirmPassword: "NewSecurePass123!"
+      responses:
+        "200":
+          description: Password successfully changed
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "Password successfully changed"
+        "400":
+          description: Bad request - validation error or weak password
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Unauthorized - current password incorrect
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Forbidden - cannot change other users' passwords
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: User not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  # Session Management Endpoints
+  /sessions:
+    post:
+      summary: Create New Session
+      description: |
+        Create a new communication session (P2P or broadcast).
+        Only authenticated users can create sessions.
+      operationId: createSession
+      tags:
+        - Sessions
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateSessionRequest"
+            example:
+              type: "broadcast"
+              title: "Team Standup Meeting"
+              description: "Daily team synchronization meeting"
+              accessType: "public"
+              maxParticipants: 10
+              settings:
+                videoQuality: "auto"
+                audioQuality: "high"
+                enableRecording: false
+                enableScreenShare: true
+                enableChat: true
+      responses:
+        "201":
+          description: Session successfully created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Session"
+              example:
+                id: "cl1h3k8k50001f4qjv9n2x1z9"
+                type: "broadcast"
+                title: "Team Standup Meeting"
+                description: "Daily team synchronization meeting"
+                accessType: "public"
+                status: "initializing"
+                maxParticipants: 10
+                currentParticipants: 0
+                hostId: "cl1h3k8k50000f4qjv9n2x1z8"
+                createdAt: "2024-01-15T10:30:00Z"
+        "400":
+          description: Bad request - validation error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ValidationErrorResponse"
+        "401":
+          description: Unauthorized - authentication required
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+    get:
+      summary: List Sessions
+      description: |
+        Retrieve list of available sessions with filtering and pagination.
+        Users can see public sessions and their own sessions.
+      operationId: getSessions
+      tags:
+        - Sessions
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: type
+          schema:
+            type: string
+            enum: ["p2p", "broadcast"]
+          description: Filter by session type
+        - in: query
+          name: accessType
+          schema:
+            type: string
+            enum: ["public", "private"]
+          description: Filter by access type
+        - in: query
+          name: status
+          schema:
+            type: string
+            enum: ["initializing", "active", "paused", "ended"]
+          description: Filter by session status
+        - in: query
+          name: hostId
+          schema:
+            type: string
+            pattern: "^[a-z0-9]+$"
+          description: Filter by host user ID
+        - in: query
+          name: page
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - in: query
+          name: limit
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+        - in: query
+          name: sort
+          schema:
+            type: string
+            default: "createdAt:-1"
+      responses:
+        "200":
+          description: Sessions retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PaginatedResponse"
+        "400":
+          description: Bad request - invalid parameters
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /sessions/{id}:
+    get:
+      summary: Get Session Details
+      description: |
+        Retrieve detailed information about a specific session.
+        Users can view public sessions or sessions they participate in.
+      operationId: getSessionById
+      tags:
+        - Sessions
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+            pattern: "^[a-z0-9]+$"
+          description: Session ID
+          example: "cl1h3k8k50001f4qjv9n2x1z9"
+      responses:
+        "200":
+          description: Session details retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Session"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Forbidden - cannot access private session
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Session not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+    patch:
+      summary: Update Session
+      description: |
+        Update session information (title, description, settings, etc.).
+        Only session host can update session details.
+      operationId: updateSession
+      tags:
+        - Sessions
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+            pattern: "^[a-z0-9]+$"
+          description: Session ID
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateSessionRequest"
+            example:
+              title: "Updated Team Standup Meeting"
+              description: "Updated daily team synchronization meeting"
+              maxParticipants: 15
+              settings:
+                videoQuality: "high"
+                enableRecording: true
+      responses:
+        "200":
+          description: Session successfully updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Session"
+        "400":
+          description: Bad request - validation error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ValidationErrorResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Forbidden - only host can update session
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Session not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+    delete:
+      summary: Delete Session
+      description: |
+        Delete a session and disconnect all participants.
+        Only session host can delete the session.
+      operationId: deleteSession
+      tags:
+        - Sessions
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+            pattern: "^[a-z0-9]+$"
+          description: Session ID
+      responses:
+        "200":
+          description: Session successfully deleted
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "Session successfully deleted"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Forbidden - only host can delete session
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Session not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /sessions/{id}/join:
+    post:
+      summary: Join Session
+      description: |
+        Join an existing session as a participant.
+        Requires appropriate permissions for private sessions.
+      operationId: joinSession
+      tags:
+        - Sessions
+        - Participants
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+            pattern: "^[a-z0-9]+$"
+          description: Session ID
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ParticipantJoinRequest"
+            example:
+              participantIdentity: "user_123"
+              displayName: "John Doe"
+              role: "viewer"
+              password: "sessionPass123"
+              deviceInfo:
+                userAgent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+                platform: "web"
+                capabilities:
+                  audio: true
+                  video: true
+                  screenShare: true
+      responses:
+        "200":
+          description: Successfully joined session
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ParticipantResponse"
+        "400":
+          description: Bad request - invalid participant data
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Forbidden - cannot join private session or session is full
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Session not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: Conflict - participant identity already in use
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /sessions/{id}/leave:
+    post:
+      summary: Leave Session
+      description: |
+        Leave a session as a participant.
+        Participant connection will be terminated gracefully.
+      operationId: leaveSession
+      tags:
+        - Sessions
+        - Participants
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+            pattern: "^[a-z0-9]+$"
+          description: Session ID
+      responses:
+        "200":
+          description: Successfully left session
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "Successfully left session"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Session not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /sessions/{id}/participants:
+    get:
+      summary: Get Session Participants
+      description: |
+        Retrieve list of participants in a session.
+        Only session participants can view participant list.
+      operationId: getSessionParticipants
+      tags:
+        - Sessions
+        - Participants
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+            pattern: "^[a-z0-9]+$"
+          description: Session ID
+      responses:
+        "200":
+          description: Session participants retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  participants:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/ParticipantResponse"
+                  totalCount:
+                    type: integer
+                    description: Total number of participants
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Forbidden - not a session participant
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Session not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /sessions/{id}/participants/{participantId}:
+    delete:
+      summary: Remove Participant from Session
+      description: |
+        Remove a participant from the session (kick user).
+        Only session host or participants with kick permissions can perform this action.
+      operationId: removeSessionParticipant
+      tags:
+        - Sessions
+        - Participants
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+            pattern: "^[a-z0-9]+$"
+          description: Session ID
+        - in: path
+          name: participantId
+          required: true
+          schema:
+            type: string
+            pattern: "^[a-z0-9]+$"
+          description: Participant ID to remove
+      responses:
+        "200":
+          description: Participant successfully removed from session
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "Participant removed from session"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Forbidden - insufficient permissions to remove participants
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Session or participant not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  # LiveKit Integration Endpoints
+  /livekit-token:
+    post:
+      summary: Generate LiveKit Token
+      description: |
+        Generate JWT token for LiveKit server authentication.
+        Token includes participant permissions and room access information.
+      operationId: generateLiveKitToken
+      tags:
+        - LiveKit
+        - Real-time Communication
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LiveKitTokenRequest"
+            example:
+              sessionId: "cl1h3k8k50001f4qjv9n2x1z9"
+              participantIdentity: "user_123"
+              participantName: "John Doe"
+              role: "viewer"
+              permissions: ["canSubscribe"]
+              metadata:
+                userId: "cl1h3k8k50000f4qjv9n2x1z8"
+                sessionId: "cl1h3k8k50001f4qjv9n2x1z9"
+              ttl: 3600
+      responses:
+        "200":
+          description: LiveKit token successfully generated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LiveKitTokenResponse"
+              example:
+                token: "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9..."
+                wsUrl: "wss://livekit.example.com"
+                participantIdentity: "user_123"
+                participantName: "John Doe"
+                serverVersion: "1.5.2"
+                iceServers:
+                  - urls: ["stun:stun.l.google.com:19302"]
+                    username: ""
+                    credential: ""
+                expiresAt: "2024-01-15T11:30:00Z"
+        "400":
+          description: Bad request - invalid token request data
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ValidationErrorResponse"
+        "401":
+          description: Unauthorized - authentication required
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Forbidden - cannot generate token for this session
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Session not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  # Health Check Endpoint
+  /health:
+    get:
+      summary: Health Check
+      description: |
+        Check API service health and readiness.
+        Returns service status and version information.
+      operationId: getHealth
+      tags:
+        - System
+      responses:
+        "200":
+          description: Service is healthy
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    enum: ["healthy", "unhealthy", "degraded"]
+                    example: "healthy"
+                  timestamp:
+                    type: string
+                    format: date-time
+                    example: "2024-01-15T10:30:00Z"
+                  version:
+                    type: string
+                    example: "1.0.0"
+                  uptime:
+                    type: integer
+                    description: Service uptime in seconds
+                    example: 3600
+                  services:
+                    type: object
+                    properties:
+                      database:
+                        type: string
+                        enum: ["connected", "disconnected", "error"]
+                      livekit:
+                        type: string
+                        enum: ["connected", "disconnected", "error"]
+                      redis:
+                        type: string
+                        enum: ["connected", "disconnected", "error"]

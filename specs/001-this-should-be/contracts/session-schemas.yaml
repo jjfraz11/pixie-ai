@@ -1,0 +1,1092 @@
+# Session Management Validation Schemas - Phase 1
+# Comprehensive schemas for session lifecycle, participant management, and real-time events
+# Implements functional programming patterns with immutable state validation
+
+---
+# Core Session Schemas
+schemas:
+  # Session Creation Schema
+  SessionCreation:
+    type: object
+    required:
+      - type
+    properties:
+      type:
+        type: string
+        enum: ["p2p", "broadcast"]
+        description: "Communication session type"
+      title:
+        type: string
+        minLength: 1
+        maxLength: 100
+        pattern: "^[\\w\\s\\p{P}\\p{S}]+$"
+        description: "Human-readable session name"
+      description:
+        type: string
+        maxLength: 500
+        pattern: "^[\\w\\s\\p{P}\\p{S}]*$"
+        description: "Optional session description"
+      accessType:
+        type: string
+        enum: ["public", "private"]
+        default: "public"
+        description: "Session access control level"
+      password:
+        type: string
+        minLength: 8
+        maxLength: 64
+        pattern: "^[A-Za-z\\d@$!%*?&]+$"
+        description: "Password for private sessions (required if accessType is private)"
+      maxParticipants:
+        type: integer
+        minimum: 2
+        maximum: 100
+        default: 10
+        description: "Maximum number of participants"
+      settings:
+        type: object
+        properties:
+          videoQuality:
+            type: string
+            enum: ["low", "medium", "high", "auto"]
+            default: "auto"
+          audioQuality:
+            type: string
+            enum: ["low", "medium", "high"]
+            default: "high"
+          enableRecording:
+            type: boolean
+            default: false
+          enableScreenShare:
+            type: boolean
+            default: true
+          enableChat:
+            type: boolean
+            default: true
+          maxVideoBitrate:
+            type: integer
+            minimum: 100000
+            maximum: 5000000
+            default: 1000000
+            description: "Maximum video bitrate in bps"
+        description: "Session-specific configuration options"
+      scheduledFor:
+        type: string
+        format: date-time
+        description: "Optional scheduled start time"
+      duration:
+        type: integer
+        minimum: 300
+        maximum: 28800
+        description: "Session duration in seconds (5 minutes to 8 hours)"
+    additionalProperties: false
+
+  # Session Update Schema
+  SessionUpdate:
+    type: object
+    properties:
+      title:
+        type: string
+        minLength: 1
+        maxLength: 100
+        pattern: "^[\\w\\s\\p{P}\\p{S}]+$"
+        description: "Updated session title"
+      description:
+        type: string
+        maxLength: 500
+        pattern: "^[\\w\\s\\p{P}\\p{S}]*$"
+        description: "Updated session description"
+      accessType:
+        type: string
+        enum: ["public", "private"]
+        description: "Updated access control level"
+      password:
+        type: string
+        minLength: 8
+        maxLength: 64
+        pattern: "^[A-Za-z\\d@$!%*?&]+$"
+        description: "Updated password for private sessions"
+      maxParticipants:
+        type: integer
+        minimum: 2
+        maximum: 100
+        description: "Updated maximum participants"
+      settings:
+        type: object
+        properties:
+          videoQuality:
+            type: string
+            enum: ["low", "medium", "high", "auto"]
+          audioQuality:
+            type: string
+            enum: ["low", "medium", "high"]
+          enableRecording:
+            type: boolean
+          enableScreenShare:
+            type: boolean
+          enableChat:
+            type: boolean
+          maxVideoBitrate:
+            type: integer
+            minimum: 100000
+            maximum: 5000000
+            description: "Maximum video bitrate in bps"
+    additionalProperties: false
+
+  # Session Response Schema
+  SessionResponse:
+    type: object
+    properties:
+      id:
+        type: string
+        pattern: "^[a-z0-9]+$"
+        description: "Unique session identifier"
+      type:
+        type: string
+        enum: ["p2p", "broadcast"]
+      title:
+        type: string
+        maxLength: 100
+      description:
+        type: string
+        maxLength: 500
+      accessType:
+        type: string
+        enum: ["public", "private"]
+      status:
+        type: string
+        enum: ["initializing", "active", "paused", "ended"]
+      maxParticipants:
+        type: integer
+        minimum: 2
+        maximum: 100
+      currentParticipants:
+        type: integer
+        minimum: 0
+      hostId:
+        type: string
+        pattern: "^[a-z0-9]+$"
+      settings:
+        type: object
+        description: "Session configuration settings"
+      liveKitRoomId:
+        type: string
+        pattern: "^[a-z0-9-]+$"
+      startedAt:
+        type: string
+        format: date-time
+      endedAt:
+        type: string
+        format: date-time
+      createdAt:
+        type: string
+        format: date-time
+      updatedAt:
+        type: string
+        format: date-time
+      participants:
+        type: array
+        items:
+          type: object
+          properties:
+            id:
+              type: string
+              pattern: "^[a-z0-9]+$"
+            participantIdentity:
+              type: string
+              maxLength: 50
+            displayName:
+              type: string
+              maxLength: 50
+            role:
+              type: string
+              enum: ["host", "broadcaster", "viewer", "guest"]
+            status:
+              type: string
+              enum: ["connecting", "connected", "disconnected", "kicked"]
+            joinedAt:
+              type: string
+              format: date-time
+            permissions:
+              type: array
+              items:
+                type: string
+    required:
+      - id
+      - type
+      - status
+      - createdAt
+      - updatedAt
+
+---
+# Participant Management Schemas
+participantSchemas:
+  # Participant Join Schema
+  ParticipantJoin:
+    type: object
+    required:
+      - sessionId
+      - participantIdentity
+    properties:
+      sessionId:
+        type: string
+        pattern: "^[a-z0-9]+$"
+        description: "Session to join"
+      participantIdentity:
+        type: string
+        minLength: 1
+        maxLength: 50
+        pattern: "^[a-z0-9_-]+$"
+        description: "Unique identifier for this participant"
+      displayName:
+        type: string
+        minLength: 1
+        maxLength: 50
+        pattern: "^[\\w\\s\\p{L}\\p{N}\\p{P}]+$"
+        description: "Display name in the session"
+      role:
+        type: string
+        enum: ["host", "broadcaster", "viewer", "guest"]
+        default: "viewer"
+        description: "Participant role and permissions"
+      password:
+        type: string
+        minLength: 8
+        maxLength: 64
+        pattern: "^[A-Za-z\\d@$!%*?&]+$"
+        description: "Session password if required"
+      deviceInfo:
+        type: object
+        properties:
+          userAgent:
+            type: string
+            maxLength: 500
+          platform:
+            type: string
+            enum: ["web", "mobile", "desktop"]
+          sdkVersion:
+            type: string
+            maxLength: 20
+          capabilities:
+            type: object
+            properties:
+              audio:
+                type: boolean
+              video:
+                type: boolean
+              screenShare:
+                type: boolean
+        description: "Client device and capability information"
+      initialSettings:
+        type: object
+        properties:
+          isAudioEnabled:
+            type: boolean
+            default: true
+          isVideoEnabled:
+            type: boolean
+            default: true
+          isScreenShareEnabled:
+            type: boolean
+            default: false
+        description: "Initial media settings"
+    additionalProperties: false
+
+  # Participant Update Schema
+  ParticipantUpdate:
+    type: object
+    properties:
+      displayName:
+        type: string
+        minLength: 1
+        maxLength: 50
+        pattern: "^[\\w\\s\\p{L}\\p{N}\\p{P}]+$"
+        description: "Updated display name"
+      role:
+        type: string
+        enum: ["host", "broadcaster", "viewer", "guest"]
+        description: "Updated participant role"
+      permissions:
+        type: array
+        items:
+          type: string
+          enum:
+            - "audio"
+            - "video"
+            - "screen_share"
+            - "chat"
+            - "kick_participants"
+            - "manage_session"
+        description: "Specific permissions for this participant"
+    additionalProperties: false
+
+  # Participant Response Schema
+  ParticipantResponse:
+    type: object
+    properties:
+      id:
+        type: string
+        pattern: "^[a-z0-9]+$"
+      sessionId:
+        type: string
+        pattern: "^[a-z0-9]+$"
+      userId:
+        type: string
+        pattern: "^[a-z0-9]+$"
+      participantIdentity:
+        type: string
+        maxLength: 50
+      displayName:
+        type: string
+        maxLength: 50
+      role:
+        type: string
+        enum: ["host", "broadcaster", "viewer", "guest"]
+      status:
+        type: string
+        enum: ["connecting", "connected", "disconnected", "kicked"]
+      permissions:
+        type: array
+        items:
+          type: string
+      joinedAt:
+        type: string
+        format: date-time
+      leftAt:
+        type: string
+        format: date-time
+      lastActivityAt:
+        type: string
+        format: date-time
+      isAudioEnabled:
+        type: boolean
+      isVideoEnabled:
+        type: boolean
+      isScreenShareEnabled:
+        type: boolean
+      connectionQuality:
+        type: string
+        enum: ["excellent", "good", "poor"]
+      deviceInfo:
+        type: object
+    required:
+      - id
+      - sessionId
+      - participantIdentity
+      - displayName
+      - role
+      - status
+      - joinedAt
+
+---
+# LiveKit Token Generation Schemas
+liveKitSchemas:
+  # Token Generation Request
+  LiveKitTokenRequest:
+    type: object
+    required:
+      - sessionId
+      - participantIdentity
+    properties:
+      sessionId:
+        type: string
+        pattern: "^[a-z0-9]+$"
+        description: "Session identifier"
+      participantIdentity:
+        type: string
+        minLength: 1
+        maxLength: 50
+        pattern: "^[a-z0-9_-]+$"
+        description: "Participant identity for LiveKit"
+      participantName:
+        type: string
+        minLength: 1
+        maxLength: 50
+        pattern: "^[\\w\\s\\p{L}\\p{N}\\p{P}]+$"
+        description: "Human-readable participant name"
+      role:
+        type: string
+        enum: ["host", "broadcaster", "viewer", "guest"]
+        default: "viewer"
+        description: "Participant role in the session"
+      permissions:
+        type: array
+        items:
+          type: string
+          enum:
+            - "canPublish"
+            - "canSubscribe"
+            - "canPublishData"
+            - "canUpdateMetadata"
+        default: ["canSubscribe"]
+        description: "LiveKit-specific permissions"
+      metadata:
+        type: object
+        properties:
+          userId:
+            type: string
+            pattern: "^[a-z0-9]+$"
+          sessionId:
+            type: string
+            pattern: "^[a-z0-9]+$"
+          deviceInfo:
+            type: object
+        description: "Additional metadata for LiveKit"
+      ttl:
+        type: integer
+        minimum: 300
+        maximum: 86400
+        default: 3600
+        description: "Token time-to-live in seconds"
+    additionalProperties: false
+
+  # Token Generation Response
+  LiveKitTokenResponse:
+    type: object
+    properties:
+      token:
+        type: string
+        pattern: "^eyJ[A-Za-z0-9_-]*\\.[A-Za-z0-9_-]*\\.[A-Za-z0-9_-]*$"
+        description: "JWT token for LiveKit authentication"
+      wsUrl:
+        type: string
+        format: uri
+        pattern: "^wss://.*livekit.*$"
+        description: "WebSocket URL for LiveKit server"
+      participantIdentity:
+        type: string
+        maxLength: 50
+        description: "Participant identity used in token"
+      participantName:
+        type: string
+        maxLength: 50
+        description: "Participant name used in token"
+      serverVersion:
+        type: string
+        description: "LiveKit server version"
+      iceServers:
+        type: array
+        items:
+          type: object
+          properties:
+            urls:
+              type: array
+              items:
+                type: string
+            username:
+              type: string
+            credential:
+              type: string
+        description: "ICE servers for WebRTC connection"
+      expiresAt:
+        type: string
+        format: date-time
+        description: "Token expiration timestamp"
+    required:
+      - token
+      - wsUrl
+      - participantIdentity
+      - expiresAt
+
+---
+# Real-time Event Schemas
+realTimeEventSchemas:
+  # Session Event Schema
+  SessionEvent:
+    type: object
+    properties:
+      eventType:
+        type: string
+        enum:
+          - "session_created"
+          - "session_started"
+          - "session_paused"
+          - "session_resumed"
+          - "session_ended"
+          - "participant_joined"
+          - "participant_left"
+          - "participant_kicked"
+          - "host_changed"
+          - "settings_updated"
+      sessionId:
+        type: string
+        pattern: "^[a-z0-9]+$"
+      timestamp:
+        type: string
+        format: date-time
+      data:
+        type: object
+        description: "Event-specific data payload"
+      correlationId:
+        type: string
+        pattern: "^[a-z0-9-]+$"
+        description: "Event correlation identifier"
+    required:
+      - eventType
+      - sessionId
+      - timestamp
+
+  # Participant Event Schema
+  ParticipantEvent:
+    type: object
+    properties:
+      eventType:
+        type: string
+        enum:
+          - "participant_joined"
+          - "participant_left"
+          - "participant_kicked"
+          - "participant_muted"
+          - "participant_unmuted"
+          - "participant_video_enabled"
+          - "participant_video_disabled"
+          - "participant_screen_share_started"
+          - "participant_screen_share_stopped"
+          - "participant_role_changed"
+          - "participant_connection_quality_changed"
+      sessionId:
+        type: string
+        pattern: "^[a-z0-9]+$"
+      participantId:
+        type: string
+        pattern: "^[a-z0-9]+$"
+      participantIdentity:
+        type: string
+        maxLength: 50
+      timestamp:
+        type: string
+        format: date-time
+      data:
+        type: object
+        description: "Event-specific data payload"
+      correlationId:
+        type: string
+        pattern: "^[a-z0-9-]+$"
+    required:
+      - eventType
+      - sessionId
+      - participantId
+      - timestamp
+
+  # Media Event Schema
+  MediaEvent:
+    type: object
+    properties:
+      eventType:
+        type: string
+        enum:
+          - "track_published"
+          - "track_unpublished"
+          - "track_muted"
+          - "track_unmuted"
+          - "track_subscribed"
+          - "track_unsubscribed"
+          - "connection_quality_changed"
+          - "devices_changed"
+      sessionId:
+        type: string
+        pattern: "^[a-z0-9]+$"
+      participantId:
+        type: string
+        pattern: "^[a-z0-9]+$"
+      trackInfo:
+        type: object
+        properties:
+          trackId:
+            type: string
+            pattern: "^[a-z0-9-]+$"
+          source:
+            type: string
+            enum: ["camera", "microphone", "screen_share"]
+          kind:
+            type: string
+            enum: ["audio", "video"]
+          isMuted:
+            type: boolean
+          isEnabled:
+            type: boolean
+          quality:
+            type: string
+            enum: ["low", "medium", "high"]
+        description: "Media track information"
+      timestamp:
+        type: string
+        format: date-time
+      correlationId:
+        type: string
+        pattern: "^[a-z0-9-]+$"
+    required:
+      - eventType
+      - sessionId
+      - participantId
+      - timestamp
+
+---
+# WebRTC Connection Schemas
+webRTCSchemas:
+  # WebRTC Connection Request
+  WebRTCConnectionRequest:
+    type: object
+    required:
+      - sessionId
+      - participantIdentity
+    properties:
+      sessionId:
+        type: string
+        pattern: "^[a-z0-9]+$"
+        description: "Session to connect to"
+      participantIdentity:
+        type: string
+        minLength: 1
+        maxLength: 50
+        pattern: "^[a-z0-9_-]+$"
+        description: "Participant identity"
+      deviceInfo:
+        type: object
+        properties:
+          userAgent:
+            type: string
+            maxLength: 500
+          platform:
+            type: string
+            enum: ["web", "mobile", "desktop"]
+          browser:
+            type: string
+            enum: ["chrome", "firefox", "safari", "edge", "other"]
+          version:
+            type: string
+            maxLength: 20
+          capabilities:
+            type: object
+            properties:
+              audio:
+                type: boolean
+              video:
+                type: boolean
+              screenShare:
+                type: boolean
+              webRTC:
+                type: boolean
+        description: "Client device information"
+      iceCandidates:
+        type: array
+        items:
+          type: object
+          properties:
+            candidate:
+              type: string
+            sdpMLineIndex:
+              type: integer
+            sdpMid:
+              type: string
+        description: "ICE candidates for connection"
+      mediaConstraints:
+        type: object
+        properties:
+          audio:
+            type: object
+            properties:
+              enabled:
+                type: boolean
+                default: true
+              echoCancellation:
+                type: boolean
+                default: true
+              noiseSuppression:
+                type: boolean
+                default: true
+          video:
+            type: object
+            properties:
+              enabled:
+                type: boolean
+                default: true
+              width:
+                type: integer
+                minimum: 160
+                maximum: 1920
+                default: 640
+              height:
+                type: integer
+                minimum: 120
+                maximum: 1080
+                default: 480
+              frameRate:
+                type: integer
+                minimum: 5
+                maximum: 60
+                default: 30
+        description: "Media stream constraints"
+    additionalProperties: false
+
+  # WebRTC Connection Response
+  WebRTCConnectionResponse:
+    type: object
+    properties:
+      connectionId:
+        type: string
+        pattern: "^[a-z0-9-]+$"
+        description: "Unique connection identifier"
+      sessionId:
+        type: string
+        pattern: "^[a-z0-9]+$"
+      participantIdentity:
+        type: string
+        maxLength: 50
+      connectionState:
+        type: string
+        enum:
+          ["new", "connecting", "connected", "disconnected", "failed", "closed"]
+      peerConnectionId:
+        type: string
+        pattern: "^[a-z0-9-]+$"
+      iceConnectionState:
+        type: string
+        enum:
+          [
+            "new",
+            "checking",
+            "connected",
+            "completed",
+            "failed",
+            "disconnected",
+            "closed",
+          ]
+      signalingState:
+        type: string
+        enum:
+          [
+            "stable",
+            "have-local-offer",
+            "have-remote-offer",
+            "have-local-pranswer",
+            "have-remote-pranswer",
+            "closed",
+          ]
+      localDescription:
+        type: object
+        properties:
+          type:
+            type: string
+            enum: ["offer", "answer", "pranswer", "rollback"]
+          sdp:
+            type: string
+        description: "Local session description"
+      remoteDescription:
+        type: object
+        properties:
+          type:
+            type: string
+            enum: ["offer", "answer", "pranswer", "rollback"]
+          sdp:
+            type: string
+        description: "Remote session description"
+      stats:
+        type: object
+        properties:
+          timestamp:
+            type: string
+            format: date-time
+          bytesReceived:
+            type: integer
+          bytesSent:
+            type: integer
+          packetsReceived:
+            type: integer
+          packetsSent:
+            type: integer
+          roundTripTime:
+            type: number
+          jitter:
+            type: number
+        description: "WebRTC connection statistics"
+      error:
+        type: object
+        properties:
+          code:
+            type: string
+          message:
+            type: string
+          details:
+            type: object
+        description: "Connection error information"
+    required:
+      - connectionId
+      - sessionId
+      - participantIdentity
+      - connectionState
+
+---
+# Role and Permission Schemas
+rolePermissionSchemas:
+  # Role Definition Schema
+  RoleDefinition:
+    type: object
+    properties:
+      role:
+        type: string
+        enum: ["host", "broadcaster", "viewer", "guest"]
+      permissions:
+        type: array
+        items:
+          type: string
+          enum:
+            - "manage_session"
+            - "kick_participants"
+            - "mute_participants"
+            - "manage_permissions"
+            - "broadcast_audio"
+            - "broadcast_video"
+            - "broadcast_screen"
+            - "view_session"
+            - "send_chat"
+            - "receive_chat"
+            - "record_session"
+        description: "Permissions granted by this role"
+      constraints:
+        type: object
+        properties:
+          maxParticipants:
+            type: integer
+            minimum: 1
+            maximum: 100
+          allowedActions:
+            type: array
+            items:
+              type: string
+          restrictions:
+            type: array
+            items:
+              type: string
+        description: "Role-specific constraints"
+    required:
+      - role
+      - permissions
+
+  # Permission Grant Schema
+  PermissionGrant:
+    type: object
+    required:
+      - participantId
+      - permissions
+    properties:
+      participantId:
+        type: string
+        pattern: "^[a-z0-9]+$"
+        description: "Target participant identifier"
+      permissions:
+        type: array
+        items:
+          type: string
+          enum:
+            - "audio"
+            - "video"
+            - "screen_share"
+            - "chat"
+            - "kick_participants"
+            - "manage_session"
+        description: "Permissions to grant"
+      duration:
+        type: integer
+        minimum: 60
+        maximum: 3600
+        description: "Permission duration in seconds (optional)"
+      reason:
+        type: string
+        maxLength: 200
+        description: "Reason for granting permissions"
+    additionalProperties: false
+
+  # Permission Revoke Schema
+  PermissionRevoke:
+    type: object
+    required:
+      - participantId
+      - permissions
+    properties:
+      participantId:
+        type: string
+        pattern: "^[a-z0-9]+$"
+        description: "Target participant identifier"
+      permissions:
+        type: array
+        items:
+          type: string
+          enum:
+            - "audio"
+            - "video"
+            - "screen_share"
+            - "chat"
+            - "kick_participants"
+            - "manage_session"
+        description: "Permissions to revoke"
+      reason:
+        type: string
+        maxLength: 200
+        description: "Reason for revoking permissions"
+    additionalProperties: false
+
+---
+# Functional Programming Validation Patterns
+validationPatterns:
+  # Immutable state validation pipeline
+  sessionValidationPipeline: |
+    (sessionData: SessionCreationInput) =>
+      pipe(
+        validateSessionType,
+        chain(validateAccessControl),
+        chain(validateParticipantLimits),
+        chain(validateSettings),
+        map(createImmutableSession)
+      )(sessionData)
+
+  # Compositional participant validation
+  participantValidationPipeline: |
+    (participantData: ParticipantJoinInput) =>
+      compose(
+        validateParticipantIdentity,
+        chain(validateDisplayName),
+        chain(validateRolePermissions),
+        chain(validateDeviceCapabilities),
+        map(createParticipantState)
+      )(participantData)
+
+  # Either-based error handling for real-time events
+  eventValidationPipeline: |
+    (eventData: RealTimeEvent) =>
+      pipe(
+        validateEventType,
+        chain(validateEventPayload),
+        chain(validateEventContext),
+        fold(
+          (error) => left(EventValidationError(error)),
+          (validEvent) => right(processImmutableEvent(validEvent))
+        )
+      )(eventData)
+
+---
+# Performance and Quality Schemas
+performanceSchemas:
+  # Connection Quality Metrics
+  ConnectionQuality:
+    type: object
+    properties:
+      participantId:
+        type: string
+        pattern: "^[a-z0-9]+$"
+      sessionId:
+        type: string
+        pattern: "^[a-z0-9]+$"
+      quality:
+        type: string
+        enum: ["excellent", "good", "poor"]
+      metrics:
+        type: object
+        properties:
+          roundTripTime:
+            type: number
+            minimum: 0
+            maximum: 1000
+            description: "RTT in milliseconds"
+          jitter:
+            type: number
+            minimum: 0
+            maximum: 100
+            description: "Jitter in milliseconds"
+          packetLoss:
+            type: number
+            minimum: 0
+            maximum: 100
+            description: "Packet loss percentage"
+          bitrate:
+            type: integer
+            minimum: 0
+            description: "Current bitrate in bps"
+          resolution:
+            type: object
+            properties:
+              width:
+                type: integer
+              height:
+                type: integer
+          frameRate:
+            type: number
+            minimum: 0
+            maximum: 60
+        description: "Detailed connection metrics"
+      timestamp:
+        type: string
+        format: date-time
+      recommendations:
+        type: array
+        items:
+          type: string
+          enum:
+            - "switch_to_audio_only"
+            - "reduce_video_quality"
+            - "check_network_connection"
+            - "restart_connection"
+        description: "Suggested actions for quality improvement"
+    required:
+      - participantId
+      - sessionId
+      - quality
+      - timestamp
+
+---
+# Error Response Schemas
+errorSchemas:
+  # Session Error Response
+  SessionError:
+    type: object
+    properties:
+      error:
+        type: object
+        properties:
+          code:
+            type: string
+            enum:
+              - "SESSION_NOT_FOUND"
+              - "SESSION_FULL"
+              - "INVALID_PASSWORD"
+              - "INSUFFICIENT_PERMISSIONS"
+              - "SESSION_ENDED"
+              - "INVALID_SESSION_STATE"
+          message:
+            type: string
+          details:
+            type: object
+          correlationId:
+            type: string
+          timestamp:
+            type: string
+            format: date-time
+    required:
+      - error
+
+  # Participant Error Response
+  ParticipantError:
+    type: object
+    properties:
+      error:
+        type: object
+        properties:
+          code:
+            type: string
+            enum:
+              - "PARTICIPANT_NOT_FOUND"
+              - "INVALID_PARTICIPANT_STATE"
+              - "CONNECTION_FAILED"
+              - "DEVICE_ERROR"
+              - "PERMISSION_DENIED"
+          message:
+            type: string
+          details:
+            type: object
+          correlationId:
+            type: string
+          timestamp:
+            type: string
+            format: date-time
+    required:
+      - error

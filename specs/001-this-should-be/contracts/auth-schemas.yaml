@@ -1,0 +1,632 @@
+# Authentication Validation Schemas - Phase 1
+# Comprehensive validation schemas for authentication, authorization, and security
+# Implements functional programming patterns with immutable validation pipelines
+
+---
+# Core Authentication Schemas
+schemas:
+  # User Registration Schema
+  UserRegistration:
+    type: object
+    required:
+      - email
+      - password
+      - confirmPassword
+    properties:
+      email:
+        type: string
+        format: email
+        maxLength: 254
+        pattern: "^[A-Za-z0-9+_.-]+@([A-Za-z0-9.-]+\\.[A-Za-z]{2,})$"
+        transform: "trim().toLowerCase()"
+        description: "User's email address for authentication"
+      password:
+        type: string
+        minLength: 12
+        maxLength: 128
+        pattern: "^(?=.*[a-z])(?=.*[A-Z])(?=.*\\d)(?=.*[@$!%*?&])[A-Za-z\\d@$!%*?&]+$"
+        description: "Strong password meeting complexity requirements"
+      confirmPassword:
+        type: string
+        minLength: 12
+        maxLength: 128
+        const: "{{password}}"
+        description: "Password confirmation must match password"
+      roles:
+        type: array
+        items:
+          type: string
+          enum: ["user", "broadcaster", "admin"]
+        default: ["user"]
+        maxItems: 3
+        description: "User role assignments"
+      captchaToken:
+        type: string
+        minLength: 1
+        description: "CAPTCHA verification token"
+    additionalProperties: false
+
+  # User Login Schema
+  UserLogin:
+    type: object
+    required:
+      - email
+      - password
+    properties:
+      email:
+        type: string
+        format: email
+        maxLength: 254
+        transform: "trim().toLowerCase()"
+        description: "User's registered email address"
+      password:
+        type: string
+        minLength: 1
+        description: "User's password"
+      deviceInfo:
+        type: object
+        properties:
+          userAgent:
+            type: string
+            maxLength: 500
+          fingerprint:
+            type: string
+            maxLength: 64
+          ipAddress:
+            type: string
+            format: ipv4
+        description: "Client device information for security"
+      rememberMe:
+        type: boolean
+        default: false
+        description: "Extended session duration if true"
+    additionalProperties: false
+
+  # Password Reset Request Schema
+  PasswordResetRequest:
+    type: object
+    required:
+      - email
+    properties:
+      email:
+        type: string
+        format: email
+        maxLength: 254
+        transform: "trim().toLowerCase()"
+        description: "Email address for password reset"
+      captchaToken:
+        type: string
+        minLength: 1
+        description: "CAPTCHA verification token"
+    additionalProperties: false
+
+  # Password Reset Confirmation Schema
+  PasswordResetConfirm:
+    type: object
+    required:
+      - token
+      - password
+      - confirmPassword
+    properties:
+      token:
+        type: string
+        pattern: "^[A-Za-z0-9_-]+$"
+        minLength: 32
+        maxLength: 64
+        description: "Password reset token from email"
+      password:
+        type: string
+        minLength: 12
+        maxLength: 128
+        pattern: "^(?=.*[a-z])(?=.*[A-Z])(?=.*\\d)(?=.*[@$!%*?&])[A-Za-z\\d@$!%*?&]+$"
+        description: "New password meeting complexity requirements"
+      confirmPassword:
+        type: string
+        minLength: 12
+        maxLength: 128
+        const: "{{password}}"
+        description: "Password confirmation must match new password"
+    additionalProperties: false
+
+  # Password Change Schema
+  PasswordChange:
+    type: object
+    required:
+      - currentPassword
+      - newPassword
+      - confirmPassword
+    properties:
+      currentPassword:
+        type: string
+        minLength: 1
+        description: "Current password for verification"
+      newPassword:
+        type: string
+        minLength: 12
+        maxLength: 128
+        pattern: "^(?=.*[a-z])(?=.*[A-Z])(?=.*\\d)(?=.*[@$!%*?&])[A-Za-z\\d@$!%*?&]+$"
+        description: "New password meeting complexity requirements"
+      confirmPassword:
+        type: string
+        minLength: 12
+        maxLength: 128
+        const: "{{newPassword}}"
+        description: "Password confirmation must match new password"
+    additionalProperties: false
+
+  # Email Verification Schema
+  EmailVerification:
+    type: object
+    required:
+      - token
+    properties:
+      token:
+        type: string
+        pattern: "^[A-Za-z0-9_-]+$"
+        minLength: 32
+        maxLength: 64
+        description: "Email verification token"
+    additionalProperties: false
+
+  # JWT Token Response Schema
+  JwtTokenResponse:
+    type: object
+    properties:
+      accessToken:
+        type: string
+        pattern: "^eyJ[A-Za-z0-9_-]*\\.[A-Za-z0-9_-]*\\.[A-Za-z0-9_-]*$"
+        description: "JWT access token"
+      refreshToken:
+        type: string
+        pattern: "^[A-Za-z0-9_-]+$"
+        minLength: 32
+        maxLength: 64
+        description: "Refresh token for extended sessions"
+      expiresIn:
+        type: integer
+        minimum: 60
+        maximum: 900
+        description: "Access token expiration in seconds"
+      tokenType:
+        type: string
+        enum: ["Bearer"]
+        description: "Token type identifier"
+      user:
+        type: object
+        properties:
+          id:
+            type: string
+            pattern: "^[a-z0-9]+$"
+          email:
+            type: string
+            format: email
+          roles:
+            type: array
+            items:
+              type: string
+              enum: ["user", "broadcaster", "admin"]
+          emailVerified:
+            type: boolean
+          isActive:
+            type: boolean
+    required:
+      - accessToken
+      - tokenType
+
+  # Refresh Token Request Schema
+  RefreshTokenRequest:
+    type: object
+    required:
+      - refreshToken
+    properties:
+      refreshToken:
+        type: string
+        pattern: "^[A-Za-z0-9_-]+$"
+        minLength: 32
+        maxLength: 64
+        description: "Valid refresh token"
+      deviceInfo:
+        type: object
+        properties:
+          userAgent:
+            type: string
+            maxLength: 500
+          fingerprint:
+            type: string
+            maxLength: 64
+        description: "Device information for security validation"
+    additionalProperties: false
+
+---
+# Password Complexity Validation Rules
+passwordValidation:
+  rules:
+    minLength:
+      value: 12
+      message: "Password must be at least 12 characters long"
+    maxLength:
+      value: 128
+      message: "Password must not exceed 128 characters"
+    uppercase:
+      pattern: "[A-Z]"
+      message: "Password must contain at least one uppercase letter"
+    lowercase:
+      pattern: "[a-z]"
+      message: "Password must contain at least one lowercase letter"
+    digits:
+      pattern: "\\d"
+      message: "Password must contain at least one number"
+    specialCharacters:
+      pattern: "[@$!%*?&]"
+      message: "Password must contain at least one special character (@$!%*?&)"
+    allowedCharacters:
+      pattern: "^[A-Za-z\\d@$!%*?&]+$"
+      message: "Password contains invalid characters"
+
+  validationFunction: |
+    (password: string): { valid: boolean; errors: string[] } => {
+      const errors: string[] = [];
+
+      if (password.length < 12) {
+        errors.push("Password must be at least 12 characters long");
+      }
+      if (password.length > 128) {
+        errors.push("Password must not exceed 128 characters");
+      }
+      if (!/[A-Z]/.test(password)) {
+        errors.push("Password must contain at least one uppercase letter");
+      }
+      if (!/[a-z]/.test(password)) {
+        errors.push("Password must contain at least one lowercase letter");
+      }
+      if (!/\d/.test(password)) {
+        errors.push("Password must contain at least one number");
+      }
+      if (!/[@$!%*?&]/.test(password)) {
+        errors.push("Password must contain at least one special character (@$!%*?&)");
+      }
+      if (!/^[A-Za-z\d@$!%*?&]+$/.test(password)) {
+        errors.push("Password contains invalid characters");
+      }
+
+      return { valid: errors.length === 0, errors };
+    }
+
+---
+# JWT Token Validation Schemas
+jwtValidation:
+  # Access Token Claims Schema
+  AccessTokenClaims:
+    type: object
+    properties:
+      sub:
+        type: string
+        pattern: "^[a-z0-9]+$"
+        description: "User ID (subject)"
+      email:
+        type: string
+        format: email
+        description: "User email"
+      roles:
+        type: array
+        items:
+          type: string
+          enum: ["user", "broadcaster", "admin"]
+        description: "User roles"
+      iat:
+        type: integer
+        description: "Issued at timestamp"
+      exp:
+        type: integer
+        description: "Expiration timestamp"
+      iss:
+        type: string
+        enum: ["pixie-ai-auth"]
+        description: "Token issuer"
+      aud:
+        type: string
+        enum: ["pixie-ai-api"]
+        description: "Token audience"
+      jti:
+        type: string
+        pattern: "^[a-z0-9-]+$"
+        description: "JWT ID for token tracking"
+    required:
+      - sub
+      - iat
+      - exp
+      - iss
+      - aud
+
+  # Refresh Token Claims Schema
+  RefreshTokenClaims:
+    type: object
+    properties:
+      sub:
+        type: string
+        pattern: "^[a-z0-9]+$"
+        description: "User ID (subject)"
+      type:
+        type: string
+        enum: ["refresh"]
+        description: "Token type"
+      deviceId:
+        type: string
+        pattern: "^[a-z0-9-]+$"
+        description: "Device identifier"
+      iat:
+        type: integer
+        description: "Issued at timestamp"
+      exp:
+        type: integer
+        description: "Expiration timestamp"
+      iss:
+        type: string
+        enum: ["pixie-ai-auth"]
+        description: "Token issuer"
+      jti:
+        type: string
+        pattern: "^[a-z0-9-]+$"
+        description: "JWT ID for token tracking"
+    required:
+      - sub
+      - type
+      - iat
+      - exp
+      - iss
+
+---
+# CAPTCHA Integration Schemas
+captchaValidation:
+  # CAPTCHA Verification Request
+  CaptchaVerifyRequest:
+    type: object
+    required:
+      - token
+      - siteKey
+    properties:
+      token:
+        type: string
+        minLength: 1
+        maxLength: 2048
+        description: "CAPTCHA response token"
+      siteKey:
+        type: string
+        pattern: "^[a-z0-9_-]+$"
+        description: "CAPTCHA site key"
+      userAgent:
+        type: string
+        maxLength: 500
+        description: "Client user agent"
+      ipAddress:
+        type: string
+        format: ipv4
+        description: "Client IP address"
+    additionalProperties: false
+
+  # CAPTCHA Verification Response
+  CaptchaVerifyResponse:
+    type: object
+    properties:
+      success:
+        type: boolean
+        description: "Verification success status"
+      score:
+        type: number
+        minimum: 0
+        maximum: 1
+        description: "Risk score (0.0 = bot, 1.0 = human)"
+      action:
+        type: string
+        description: "CAPTCHA action performed"
+      challenge_ts:
+        type: string
+        format: date-time
+        description: "Challenge timestamp"
+      hostname:
+        type: string
+        description: "Request hostname"
+      error-codes:
+        type: array
+        items:
+          type: string
+          enum:
+            - "missing-input-secret"
+            - "invalid-input-secret"
+            - "missing-input-response"
+            - "invalid-input-response"
+            - "bad-request"
+            - "timeout-or-duplicate"
+        description: "Error codes if verification failed"
+    required:
+      - success
+
+---
+# Rate Limiting Schemas
+rateLimitValidation:
+  # Login Rate Limit Schema
+  LoginRateLimit:
+    type: object
+    properties:
+      windowMs:
+        type: integer
+        minimum: 60000
+        maximum: 900000
+        default: 900000
+        description: "Rate limit window in milliseconds (15 minutes)"
+      maxAttempts:
+        type: integer
+        minimum: 3
+        maximum: 10
+        default: 5
+        description: "Maximum login attempts per window"
+      blockDuration:
+        type: integer
+        minimum: 900000
+        maximum: 3600000
+        default: 900000
+        description: "Account lock duration in milliseconds (15 minutes)"
+      skipSuccessful:
+        type: boolean
+        default: true
+        description: "Skip rate limiting for successful logins"
+      skipFailed:
+        type: boolean
+        default: false
+        description: "Skip rate limiting for failed logins"
+    additionalProperties: false
+
+---
+# Security Event Schemas
+securityEventSchemas:
+  # Account Lockout Event
+  AccountLockoutEvent:
+    type: object
+    properties:
+      eventType:
+        type: string
+        enum: ["account_lockout"]
+      userId:
+        type: string
+        pattern: "^[a-z0-9]+$"
+      reason:
+        type: string
+        enum: ["max_attempts_exceeded", "suspicious_activity", "admin_action"]
+      attempts:
+        type: integer
+        minimum: 1
+      lockoutUntil:
+        type: string
+        format: date-time
+      ipAddress:
+        type: string
+        format: ipv4
+      userAgent:
+        type: string
+      timestamp:
+        type: string
+        format: date-time
+    required:
+      - eventType
+      - userId
+      - reason
+      - timestamp
+
+  # Authentication Event
+  AuthenticationEvent:
+    type: object
+    properties:
+      eventType:
+        type: string
+        enum: ["login_success", "login_failure", "logout"]
+      userId:
+        type: string
+        pattern: "^[a-z0-9]+$"
+      success:
+        type: boolean
+      ipAddress:
+        type: string
+        format: ipv4
+      userAgent:
+        type: string
+      deviceFingerprint:
+        type: string
+      timestamp:
+        type: string
+        format: date-time
+      metadata:
+        type: object
+        description: "Additional event metadata"
+    required:
+      - eventType
+      - userId
+      - success
+      - timestamp
+
+---
+# Functional Programming Validation Pipelines
+validationPipelines:
+  # Immutable validation pipeline for user registration
+  userRegistrationPipeline: |
+    (data: UserRegistrationInput) =>
+      pipe(
+        validateEmail,
+        chain(validatePassword),
+        chain(validatePasswordConfirmation),
+        chain(validateCaptcha),
+        map(transformUserData)
+      )(data)
+
+  # Compositional validation for password strength
+  passwordStrengthPipeline: |
+    (password: string) =>
+      compose(
+        validateLength,
+        chain(validateCharacterSets),
+        chain(validateComplexity),
+        map(calculateEntropy)
+      )(password)
+
+  # Either-based error handling for authentication
+  authenticationPipeline: |
+    (credentials: UserCredentials) =>
+      pipe(
+        validateCredentials,
+        chain(findUser),
+        chain(verifyPassword),
+        chain(generateTokens),
+        chain(updateLastLogin)
+      )(credentials)
+
+---
+# Compliance Schemas
+complianceSchemas:
+  # GDPR Data Export Request
+  GdprDataExport:
+    type: object
+    properties:
+      requestType:
+        type: string
+        enum: ["export", "delete", "rectify"]
+      dataTypes:
+        type: array
+        items:
+          type: string
+          enum: ["profile", "sessions", "authentication_logs", "all"]
+        default: ["all"]
+      format:
+        type: string
+        enum: ["json", "csv", "xml"]
+        default: "json"
+      includeMetadata:
+        type: boolean
+        default: true
+    required:
+      - requestType
+
+  # Consent Management Schema
+  ConsentManagement:
+    type: object
+    properties:
+      consentType:
+        type: string
+        enum: ["terms", "privacy", "marketing", "analytics"]
+      granted:
+        type: boolean
+      grantedAt:
+        type: string
+        format: date-time
+      expiresAt:
+        type: string
+        format: date-time
+      ipAddress:
+        type: string
+        format: ipv4
+      userAgent:
+        type: string
+      version:
+        type: string
+        description: "Version of terms/privacy policy"
+    required:
+      - consentType
+      - granted
