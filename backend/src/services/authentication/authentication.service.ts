@@ -31,6 +31,11 @@ export default function configureAuthenticationService(app: Application) {
     before: {
       create: [
         async (context: any) => {
+          if (context.data.strategy === 'local') {
+            if (context.data.captcha !== 'pixie') {
+              throw new BadRequest('Invalid CAPTCHA');
+            }
+          }
           // Log authentication attempts for debugging
           console.log("Authentication attempt:", {
             strategy: context.data?.strategy,

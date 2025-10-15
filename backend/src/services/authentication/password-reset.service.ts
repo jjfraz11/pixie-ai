@@ -127,9 +127,13 @@ class PasswordResetService implements Service<any> {
         email,
       });
 
-      // TODO: Send email with reset token
-      // For now, we'll just return success
-      // In a real implementation, integrate with an email service
+      // Send email with reset token
+      await this.app.service("email").create({
+        to: user.email,
+        subject: "Password Reset Request",
+        text: `Your password reset token is: ${resetToken}`,
+        html: `<p>Your password reset token is: <strong>${resetToken}</strong></p>`
+      });
 
       return {
         success: true,

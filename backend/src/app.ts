@@ -61,6 +61,7 @@ app.use("/authentication", authLimiter);
 import configureUsersService from "./services/users/users.service";
 import configureSessionsService from "./services/sessions/sessions.service";
 import configureAuthentication from "./services/authentication/authentication.service";
+import configureEmailService from "./services/email/email.service";
 
 // Set authentication configuration
 app.set("authentication", {
@@ -78,6 +79,8 @@ app.set("authentication", {
 
 // Configure authentication service (includes password reset functionality)
 configureAuthentication(app);
+
+app.configure(configureEmailService);
 
 app.configure(configureSessionsService);
 

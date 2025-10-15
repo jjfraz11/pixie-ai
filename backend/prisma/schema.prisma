@@ -7,6 +7,12 @@ generator client {
   provider = "prisma-client-js"
 }
 
+enum Role {
+  USER
+  BROADCASTER
+  ADMIN
+}
+
 enum SessionType {
   P2P
   BROADCAST
@@ -17,6 +23,13 @@ enum AccessType {
   PRIVATE
 }
 
+enum SessionStatus {
+  INITIALIZING
+  ACTIVE
+  PAUSED
+  ENDED
+}
+
 enum ParticipantRole {
   HOST
   GUEST
@@ -24,37 +37,96 @@ enum ParticipantRole {
   VIEWER
 }
 
+enum ParticipantStatus {
+  CONNECTING
+  CONNECTED
+  DISCONNECTED
+  KICKED
+}
+
+enum ConnectionQuality {
+  EXCELLENT
+  GOOD
+  POOR
+}
+
 model User {
-  id        String   @id @default(cuid())
-  email     String   @unique
-  password  String
-  roles     String[]
-  resetToken String?
-  resetTokenExpires DateTime?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  sessions  Session[]
+  id                   String         @id @default(cuid())
+  email                String         @unique
+  passwordHash         String
+  roles                Role[]         @default([USER])
+  isActive             Boolean        @default(true)
+  emailVerified        Boolean        @default(false)
+  lastLoginAt          DateTime?      
+  loginAttempts        Int            @default(0)
+  lockedUntil          DateTime?      
+  createdAt            DateTime       @default(now())
+  updatedAt            DateTime       @updatedAt
+  refreshTokens        RefreshToken[]
+  hostedSessions       Session[]
+  participatedSessions Participant[]
 }
 
 model Session {
-  sessionId     String         @id @default(cuid())
-  type          SessionType
-  accessType    AccessType     @default(PUBLIC)
-  password      String?
-  hostId        String
-  host          User           @relation(fields: [hostId], references: [id])
-  participants  Participant[]
-  createdAt     DateTime       @default(now())
+  id                  String        @id @default(cuid())
+  type                SessionType
+  accessType          AccessType    @default(PUBLIC)
+  passwordHash        String?
+  title               String        @db.VarChar(100)
+  description         String?       @db.VarChar(500)
+  status              SessionStatus @default(INITIALIZING)
+  maxParticipants     Int           @default(10)
+  currentParticipants Int           @default(0)
+  hostId              String
+  host                User          @relation(fields: [hostId], references: [id])
+  participants        Participant[]
+  settings            Json?
+  liveKitRoomId       String?       @unique
+  startedAt           DateTime?
+  endedAt             DateTime?
+  createdAt           DateTime      @default(now())
+  updatedAt           DateTime      @updatedAt
 
   @@index([hostId])
 }
 
 model Participant {
-  participantId String           @id @default(cuid())
-  name          String
-  role          ParticipantRole
-  sessionId     String
-  session       Session          @relation(fields: [sessionId], references: [sessionId], onDelete: Cascade)
+  id                   String             @id @default(cuid())
+  sessionId            String
+  session              Session            @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  userId               String?
+  user                 User?              @relation(fields: [userId], references: [id])
+  participantIdentity  String
+  displayName          String             @db.VarChar(50)
+  role                 ParticipantRole
+  status               ParticipantStatus  @default(CONNECTING)
+  permissions          String[]
+  joinedAt             DateTime           @default(now())
+  leftAt               DateTime?
+  lastActivityAt       DateTime           @updatedAt
+  isAudioEnabled       Boolean            @default(true)
+  isVideoEnabled       Boolean            @default(true)
+  isScreenShareEnabled Boolean            @default(false)
+  connectionQuality    ConnectionQuality? @default(GOOD)
+  deviceInfo           Json?
+  ipAddress            String?
 
+  @@unique([sessionId, participantIdentity])
   @@index([sessionId])
+  @@index([userId])
+}
+
+model RefreshToken {
+  id           String    @id @default(cuid())
+  userId       String
+  user         User      @relation(fields: [userId], references: [id])
+  tokenHash    String    @unique
+  deviceInfo   Json?
+  ipAddress    String?
+  isActive     Boolean   @default(true)
+  expiresAt    DateTime
+  lastUsedAt   DateTime?
+  createdAt    DateTime  @default(now())
+
+  @@index([userId])
 }

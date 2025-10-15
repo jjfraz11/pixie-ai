@@ -132,6 +132,9 @@ export default function configureUsersService(app: Application) {
       get: [],
       create: [
         async (context: any) => {
+          if (context.data.captcha !== 'pixie') {
+            throw new BadRequest('Invalid CAPTCHA');
+          }
           if (context.data.password) {
             const passwordValidation = validatePasswordStrength(
               context.data.password

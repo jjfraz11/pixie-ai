@@ -31,7 +31,8 @@ _Goal: Establish core infrastructure (database, authentication, security) requir
 - [ ] T015 [Auth] Implement Feathers.js authentication service with JWT and local strategy
 - [ ] T016 [Auth] Create password validation service with 12+ char requirements (mixed case, numbers, special chars)
 - [ ] T017 [Auth] Implement RBAC authorization hooks for role-based access control
-- [ ] T018 [Auth] Create authentication services for login, registration, and password reset
+- [ ] **T018**: [Backend] Implement rate limiting and CAPTCHA integration for brute-force login protection.
+- [ ] **T019**: [Backend] Implement CAPTCHA integration for registration and login forms.
 - [ ] T019 [Test] Configure Jest testing framework for backend services
 - [ ] T020 [Test] Configure React Testing Library for frontend components
 - [ ] T021 [Monitoring] Set up OpenTelemetry v1.20.0 for distributed tracing and metrics
