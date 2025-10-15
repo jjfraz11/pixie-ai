@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "../contexts/AuthContext";
 
@@ -16,12 +16,16 @@ export default function GoLivePanel({ className = "" }: GoLivePanelProps) {
   const { user, token } = useAuth();
   const router = useRouter();
 
-  // Check if user has broadcaster role
-  const isBroadcaster = user?.roles?.includes("broadcaster");
+  const handleToggleExpanded = useCallback(() => {
+    setIsExpanded((prev) => !prev);
+  }, [setIsExpanded]);
 
-  if (!isBroadcaster) {
-    return null; // Don't render for non-broadcasters
-  }
+  const handleStreamTitleChange = useCallback(
+    (e: React.ChangeEvent<HTMLInputElement>) => {
+      setStreamTitle(e.target.value);
+    },
+    [setStreamTitle]
+  );
 
   const handleStartStream = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -64,6 +68,13 @@ export default function GoLivePanel({ className = "" }: GoLivePanelProps) {
       setIsLoading(false);
     }
   };
+
+  // Check if user has broadcaster role
+  const isBroadcaster = user?.roles?.includes("broadcaster");
+
+  if (!isBroadcaster) {
+    return null; // Don't render for non-broadcasters
+  }
 
   return (
     <div className={`bg-white rounded-lg shadow-md ${className}`}>

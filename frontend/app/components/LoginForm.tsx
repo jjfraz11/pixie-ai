@@ -1,42 +1,49 @@
-'use client';
+"use client";
 
-import React, { useState, useCallback } from 'react';
-import { useAuth } from '../../contexts/AuthContext';
+import { useCallback, useState, FormEvent } from 'react';
+import { useAuth } from '../contexts/AuthContext';
 
 export default function LoginForm() {
   const { login, setShowRegister } = useAuth();
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [loginError, setLoginError] = useState<string | null>(null);
 
-  const handleLogin = useCallback(async (e: React.FormEvent) => {
-    e.preventDefault();
-    setLoginError(null);
+  const handleLogin = useCallback(
+    async (e: FormEvent) => {
+      e.preventDefault();
+      setLoginError(null);
 
-    try {
-      const response = await fetch('/api/authentication', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          strategy: 'local',
-          email,
-          password,
-        }),
-      });
+      try {
+        const response = await fetch("/api/authentication", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            strategy: "local",
+            email,
+            password,
+          }),
+        });
 
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.message || 'Login failed');
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(errorData.message || "Login failed");
+        }
+
+        const data = await response.json();
+        login(data.user, data.accessToken);
+      } catch (err) {
+        setLoginError(
+          err instanceof Error
+            ? err.message
+            : "An unknown error occurred during login"
+        );
       }
-
-      const data = await response.json();
-      login(data.user, data.accessToken);
-    } catch (err) {
-      setLoginError(err instanceof Error ? err.message : 'An unknown error occurred during login');
-    }
-  }, [email, password, login, setLoginError]);
+    },
+    [email, password, login, setLoginError]
+  );
 
   const handleShowRegister = useCallback(() => {
     setShowRegister(true);
@@ -45,7 +52,10 @@ export default function LoginForm() {
   return (
     <form onSubmit={handleLogin} className="space-y-4">
       <div>
-        <label htmlFor="email" className="block text-sm font-medium text-gray-700">
+        <label
+          htmlFor="email"
+          className="block text-sm font-medium text-gray-700"
+        >
           Email
         </label>
         <input
@@ -58,7 +68,10 @@ export default function LoginForm() {
         />
       </div>
       <div>
-        <label htmlFor="password" className="block text-sm font-medium text-gray-700">
+        <label
+          htmlFor="password"
+          className="block text-sm font-medium text-gray-700"
+        >
           Password
         </label>
         <input

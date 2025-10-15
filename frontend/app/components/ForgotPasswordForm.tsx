@@ -1,48 +1,47 @@
-'use client';
+"use client";
 
-import React, { useState } from 'react';
-import { useAuth } from '../../contexts/AuthContext';
+import { useCallback, useState, FormEvent } from "react";
+import { requestPasswordResetAPI } from "../lib/api";
 
 export default function ForgotPasswordForm() {
-  const { setShowForgotPassword } = useAuth();
-  const [email, setEmail] = useState('');
+  const [email, setEmail] = useState("");
   const [message, setMessage] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setMessage(null);
-    setError(null);
-    setIsLoading(true);
+  const handleSubmit = useCallback(
+    async (e: FormEvent) => {
+      e.preventDefault();
+      setMessage(null);
+      setIsSubmitting(true);
 
-    try {
-      const response = await fetch('/authentication/reset-password', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ email }),
-      });
+      try {
+        const data = await requestPasswordResetAPI({
+          action: "request",
+          email,
+        });
 
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.message || 'Failed to send reset link');
+        setMessage(data.message || "Password reset email sent");
+        setEmail(""); // Clear the email field on success
+      } catch (err) {
+        setMessage(
+          err instanceof Error
+            ? `Error: ${err.message}`
+            : "An unknown error occurred"
+        );
+      } finally {
+        setIsSubmitting(false);
       }
-
-      setMessage(data.message);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'An unknown error occurred');
-    } finally {
-      setIsLoading(false);
-    }
-  };
+    },
+    [email]
+  );
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
       <div>
-        <label htmlFor="email" className="block text-sm font-medium text-gray-700">
+        <label
+          htmlFor="email"
+          className="block text-sm font-medium text-gray-700"
+        >
           Email
         </label>
         <input
@@ -52,36 +51,30 @@ export default function ForgotPasswordForm() {
           onChange={(e) => setEmail(e.target.value)}
           className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
           required
-          disabled={isLoading}
+          disabled={isSubmitting}
         />
       </div>
-
       {message && (
-        <div className="text-sm text-green-600 bg-green-50 p-3 rounded-md">
+        <div
+          className={`text-sm p-3 rounded-md ${
+            message.startsWith("Error:")
+              ? "text-red-600 bg-red-50"
+              : "text-green-600 bg-green-50"
+          }`}
+        >
           {message}
         </div>
       )}
-
-      {error && (
-        <div className="text-sm text-red-600 bg-red-50 p-3 rounded-md">
-          Error: {error}
-        </div>
-      )}
-
       <button
         type="submit"
-        disabled={isLoading}
-        className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+        disabled={isSubmitting}
+        className={`w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white ${
+          isSubmitting
+            ? "bg-gray-400 cursor-not-allowed"
+            : "bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+        }`}
       >
-        {isLoading ? 'Sending...' : 'Send Reset Link'}
-      </button>
-
-      <button
-        type="button"
-        onClick={() => setShowForgotPassword(false)}
-        className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-blue-600 hover:text-blue-700 focus:outline-none"
-      >
-        Back to Login
+        {isSubmitting ? "Sending..." : "Send Reset Email"}
       </button>
     </form>
   );

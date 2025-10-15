@@ -1,6 +1,7 @@
 import { Type } from "@feathersjs/typebox";
 import prisma from "../../prisma"; // Import prisma
 import { Conflict, GeneralError, Forbidden } from "@feathersjs/errors";
+import { authorize } from "../../hooks/authorization";
 // Schema for creating new sessions
 export const sessionDataSchema = Type.Object({
     type: Type.Union([Type.Literal("p2p"), Type.Literal("broadcast")]),
@@ -44,16 +45,9 @@ class SessionService {
         if (data.type !== "p2p" && data.type !== "broadcast") {
             throw new Error('Invalid session type. Must be either "p2p" or "broadcast"');
         }
-        if (data.type === "broadcast") {
-            // Check if the user has broadcaster role
-            if (!params?.user ||
-                !params.user.roles ||
-                !params.user.roles.includes("broadcaster")) {
-                throw new Error('Only users with the "broadcaster" role can create broadcast sessions');
-            }
-        }
         if (data.type === "p2p") {
-            // Add any P2P specific validation here
+            // P2P sessions should enforce max 2 participants
+            // This will be enforced in the participants service
         }
         // Create the session in the database
         try {
@@ -68,6 +62,37 @@ class SessionService {
             throw new GeneralError("Failed to create session", error);
         }
     }
+    async patch(id, data, params) {
+        try {
+            const updatedSession = await this.prisma.session.update({
+                where: { sessionId: id },
+                data,
+            });
+            return updatedSession;
+        }
+        catch (error) {
+            if (error.code === "P2025") {
+                // Prisma record not found
+                throw new GeneralError("Session not found");
+            }
+            throw new GeneralError("Failed to update session", error);
+        }
+    }
+    async remove(id, params) {
+        try {
+            const deletedSession = await this.prisma.session.delete({
+                where: { sessionId: id },
+            });
+            return deletedSession;
+        }
+        catch (error) {
+            if (error.code === "P2025") {
+                // Prisma record not found
+                throw new GeneralError("Session not found");
+            }
+            throw new GeneralError("Failed to delete session", error);
+        }
+    }
 }
 export default function (app) {
     app.use("sessions", new SessionService({
@@ -79,7 +104,7 @@ export default function (app) {
     const service = app.service("sessions");
     service.hooks({
         before: {
-            all: [],
+            all: [authorize()], // Require authentication for all operations
             find: [],
             get: [],
             create: [
@@ -87,6 +112,13 @@ export default function (app) {
                 async (context) => {
                     if (!context.data.hostId && context.params?.user) {
                         context.data.hostId = context.params.user.id;
+                    }
+                    return context;
+                },
+                // Additional RBAC for broadcast sessions
+                async (context) => {
+                    if (context.data.type === "broadcast") {
+                        authorize(["broadcaster"])(context);
                     }
                     return context;
                 },

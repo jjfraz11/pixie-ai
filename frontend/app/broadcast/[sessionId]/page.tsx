@@ -9,7 +9,9 @@ import {
   RoomAudioRenderer,
   useParticipants,
   ParticipantTile,
+  useLocalParticipant,
 } from "@livekit/components-react";
+import { Room, LocalParticipant } from "livekit-client";
 import "@livekit/components-styles";
 import { useAuth } from "../../contexts/AuthContext";
 
@@ -21,6 +23,53 @@ interface BroadcastRoomProps {
   title: string;
 }
 
+function BroadcastControlBar() {
+  const { localParticipant } = useLocalParticipant();
+  const [isCameraEnabled, setIsCameraEnabled] = useState(true);
+  const [isMicrophoneEnabled, setIsMicrophoneEnabled] = useState(true);
+
+  const handleToggleCamera = async () => {
+    try {
+      const newState = !isCameraEnabled;
+      await localParticipant.setCameraEnabled(newState);
+      setIsCameraEnabled(newState);
+    } catch (error) {
+      console.error("Error toggling camera:", error);
+    }
+  };
+
+  const handleToggleMicrophone = async () => {
+    try {
+      const newState = !isMicrophoneEnabled;
+      await localParticipant.setMicrophoneEnabled(newState);
+      setIsMicrophoneEnabled(newState);
+    } catch (error) {
+      console.error("Error toggling microphone:", error);
+    }
+  };
+
+  return (
+    <div className="flex items-center space-x-4 bg-black bg-opacity-70 px-4 py-2 rounded-lg">
+      <button
+        onClick={handleToggleCamera}
+        className="flex items-center space-x-2 px-3 py-1 rounded-md bg-gray-700 hover:bg-gray-600 text-white transition-colors"
+        title={isCameraEnabled ? "Disable Camera" : "Enable Camera"}
+      >
+        <span className="text-lg">{isCameraEnabled ? "📹" : "📷"}</span>
+        <span className="text-sm">{isCameraEnabled ? "On" : "Off"}</span>
+      </button>
+      <button
+        onClick={handleToggleMicrophone}
+        className="flex items-center space-x-2 px-3 py-1 rounded-md bg-gray-700 hover:bg-gray-600 text-white transition-colors"
+        title={isMicrophoneEnabled ? "Disable Microphone" : "Enable Microphone"}
+      >
+        <span className="text-lg">{isMicrophoneEnabled ? "🎤" : "🔇"}</span>
+        <span className="text-sm">{isMicrophoneEnabled ? "On" : "Off"}</span>
+      </button>
+    </div>
+  );
+}
+
 function BroadcastView({
   sessionId,
   livekitToken,
@@ -29,6 +78,7 @@ function BroadcastView({
   title,
 }: BroadcastRoomProps) {
   const participants = useParticipants();
+  const { localParticipant } = useLocalParticipant();
   const router = useRouter();
 
   const handleEndStream = () => {
@@ -66,7 +116,20 @@ function BroadcastView({
             connect={true}
             onDisconnected={() => {
               console.log("Disconnected from LiveKit room");
-              router.push("/dashboard");
+
+              // Show error notification to viewers about broadcaster disconnection
+              // In a real app, this would be more sophisticated with proper error states
+              const notification = document.createElement("div");
+              notification.className =
+                "fixed top-4 left-1/2 transform -translate-x-1/2 bg-red-600 text-white px-4 py-2 rounded-lg z-50";
+              notification.textContent =
+                "Connection lost. Attempting to reconnect...";
+              document.body.appendChild(notification);
+
+              setTimeout(() => {
+                document.body.removeChild(notification);
+                router.push("/dashboard");
+              }, 3000);
             }}
           >
             <div className="h-full flex flex-col">
@@ -104,7 +167,7 @@ function BroadcastView({
 
               {/* Control bar */}
               <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2">
-                <ControlBar />
+                <BroadcastControlBar />
               </div>
             </div>
             <RoomAudioRenderer />

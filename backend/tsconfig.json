@@ -2,7 +2,6 @@
   "compilerOptions": {
     "target": "es2020",
     "module": "es2020",
-    "rootDir": "./src",
     "outDir": "./lib",
     "strict": true,
     "esModuleInterop": true,
@@ -11,13 +10,8 @@
     "resolveJsonModule": true,
     "moduleResolution": "node"
   },
-  "include": [
-    "src/**/*.ts"
-  ],
-  "exclude": [
-    "node_modules",
-    "lib"
-  ],
+  "include": ["src/**/*.ts", "test/**/*.ts"],
+  "exclude": ["node_modules", "lib"],
   "ts-node": {
     "esm": true,
     "experimentalSpecifierResolution": "node",
@@ -28,8 +22,6 @@
     "skipProject": true,
     "skipIgnore": true,
     "files": true,
-    "ignore": [
-      "/node_modules/"
-    ]
+    "ignore": ["/node_modules/"]
   }
 }

@@ -7,6 +7,7 @@ import express, { json, urlencoded, static as serveStatic, rest, } from "@feathe
 import socketio from "@feathersjs/socketio";
 import cors from "cors"; // Import cors
 import helmet from "helmet"; // Import helmet
+import rateLimit from "express-rate-limit"; // Import rateLimit
 // In your app.js or equivalent
 const app = express(feathers());
 // Use Helmet.js for security headers
@@ -23,6 +24,23 @@ app.use(serveStatic(join(__dirname, "public")));
 app.configure(rest());
 // Configure Socket.io real-time APIs
 app.configure(socketio());
+// Rate limiting for authentication endpoints
+const authLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000, // 15 minutes
+    max: 5, // Limit each IP to 5 authentication attempts per windowMs
+    message: {
+        error: "Too many authentication attempts from this IP, please try again after 15 minutes",
+        code: "RATE_LIMIT_EXCEEDED",
+    },
+    standardHeaders: true,
+    legacyHeaders: false,
+    skip: (req) => {
+        // Skip rate limiting for successful requests or development
+        return process.env.NODE_ENV === "development";
+    },
+});
+// Apply rate limiting to authentication routes
+app.use("/authentication", authLimiter);
 // Custom error handler
 app.use((error, req, res, next) => {
     console.error("Custom Error Handler:", error); // Log the error
@@ -36,11 +54,12 @@ app.use((error, req, res, next) => {
 });
 import configureUsersService from "./services/users/users.service";
 import configureSessionsService from "./services/sessions/sessions.service";
-import configureAuthentication from "./services/authentication.service";
+import configureAuthentication from "./services/authentication/authentication.service";
+import configurePasswordResetService from "./services/password-reset.service";
 // Set authentication configuration
 app.set("authentication", {
     secret: process.env.AUTHENTICATION_SECRET || "fallback-secret-key-for-development",
-    strategies: ["jwt", "local"],
+    authStrategies: ["jwt", "local"],
     service: "users",
     entity: "user",
     entityId: "id",
@@ -53,4 +72,5 @@ app.set("authentication", {
 configureAuthentication(app);
 app.configure(configureSessionsService);
 app.configure(configureUsersService);
+app.configure(configurePasswordResetService);
 export default app;

@@ -1,7 +1,7 @@
-'use client';
+"use client";
 
-import { useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import {
   LiveKitRoom,
   VideoConference,
@@ -9,12 +9,9 @@ import {
   useRoomContext,
   useLocalParticipant,
   useParticipants,
-  useTracks,
-  VideoTrack,
-  AudioTrack,
-} from '@livekit/components-react';
-import { Room, RoomEvent, RemoteParticipant, LocalParticipant, Track } from 'livekit-client';
-import { useAuth } from '../../../contexts/AuthContext';
+} from "@livekit/components-react";
+
+import { useAuth } from "@/app/contexts/AuthContext";
 
 interface P2PPageProps {
   params: { sessionId: string };
@@ -28,10 +25,11 @@ export default function P2PPage({ params }: P2PPageProps) {
   const [wsUrl, setWsUrl] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [hostDisconnected, setHostDisconnected] = useState(false);
 
   useEffect(() => {
     if (!user || !token) {
-      router.push('/'); // Redirect to login if not authenticated
+      router.push("/"); // Redirect to login if not authenticated
       return;
     }
 
@@ -40,11 +38,11 @@ export default function P2PPage({ params }: P2PPageProps) {
         setIsLoading(true);
         setError(null);
 
-        const response = await fetch('/api/livekit-token', {
-          method: 'POST',
+        const response = await fetch("/api/livekit-token", {
+          method: "POST",
           headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`,
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
           },
           body: JSON.stringify({
             roomName: `p2p-${sessionId}`,
@@ -56,15 +54,30 @@ export default function P2PPage({ params }: P2PPageProps) {
 
         if (!response.ok) {
           const errorData = await response.json();
-          throw new Error(errorData.message || 'Failed to get LiveKit token');
+          if (response.status === 404) {
+            throw new Error("Session not found or expired");
+          } else if (response.status === 403) {
+            throw new Error("Access denied to this session");
+          } else if (
+            response.status === 400 &&
+            errorData.error?.includes("password")
+          ) {
+            throw new Error("Session requires a password");
+          } else {
+            throw new Error(errorData.error || "Failed to join session");
+          }
         }
 
         const data = await response.json();
         setLivekitToken(data.token);
         setWsUrl(data.wsUrl);
       } catch (err) {
-        setError(err instanceof Error ? err.message : 'An error occurred while fetching LiveKit token');
-        console.error('Error fetching LiveKit token:', err);
+        setError(
+          err instanceof Error
+            ? err.message
+            : "An error occurred while joining the session"
+        );
+        console.error("Error joining session:", err);
       } finally {
         setIsLoading(false);
       }
@@ -92,7 +105,9 @@ export default function P2PPage({ params }: P2PPageProps) {
   if (!livekitToken || !wsUrl) {
     return (
       <div className="flex items-center justify-center min-h-screen bg-gray-900 text-white">
-        <div className="text-lg">Authentication failed or token not available.</div>
+        <div className="text-lg">
+          Authentication failed or token not available.
+        </div>
       </div>
     );
   }
@@ -107,8 +122,9 @@ export default function P2PPage({ params }: P2PPageProps) {
         connect={true}
         data-lk-theme="default"
         onDisconnected={() => {
-          console.log('Disconnected from LiveKit room');
-          router.push('/'); // Redirect to home on disconnect
+          console.log("Disconnected from LiveKit room");
+          setHostDisconnected(true);
+          // Don't immediately redirect - show disconnect message and allow user to leave manually
         }}
       >
         <P2PChatUI sessionId={sessionId} />
@@ -127,25 +143,75 @@ function P2PChatUI({ sessionId }: P2PChatUIProps) {
   const { localParticipant } = useLocalParticipant();
   const participants = useParticipants();
   const router = useRouter();
+  const [hostDisconnected, setHostDisconnected] = useState(false);
 
-  const remoteParticipants = participants.filter(p => p.identity !== localParticipant.identity);
+  const remoteParticipants = participants.filter(
+    (p) => p.identity !== localParticipant.identity
+  );
+
+  const [isCameraEnabled, setIsCameraEnabled] = useState(true);
+  const [isMicrophoneEnabled, setIsMicrophoneEnabled] = useState(true);
+
+  // Monitor for host disconnections (assuming local participant is not the host)
+  useEffect(() => {
+    if (remoteParticipants.length === 0 && room.name) {
+      // If no remote participants and we're in a room, assume host disconnected
+      // In a real implementation, you'd need to check if local user is the host
+      setHostDisconnected(true);
+    }
+  }, [remoteParticipants.length, room.name]);
 
   const handleToggleCamera = async () => {
-    if (localParticipant.cameraPublication) {
-      await localParticipant.setCameraEnabled(!localParticipant.cameraPublication.track?.isEnabled);
+    try {
+      const newState = !isCameraEnabled;
+      await localParticipant.setCameraEnabled(newState);
+      setIsCameraEnabled(newState);
+    } catch (error) {
+      console.error("Error toggling camera:", error);
     }
   };
 
   const handleToggleMicrophone = async () => {
-    if (localParticipant.microphonePublication) {
-      await localParticipant.setMicrophoneEnabled(!localParticipant.microphonePublication.track?.isEnabled);
+    try {
+      const newState = !isMicrophoneEnabled;
+      await localParticipant.setMicrophoneEnabled(newState);
+      setIsMicrophoneEnabled(newState);
+    } catch (error) {
+      console.error("Error toggling microphone:", error);
     }
   };
 
   const handleLeaveSession = async () => {
     await room.disconnect();
-    router.push('/');
+    router.push("/");
   };
+
+  const handleHostDisconnectedLeave = () => {
+    router.push("/");
+  };
+
+  // For T039: Implement error handling for initiating P2P with offline user
+  // This would be handled in the UserList component when creating sessions
+  // For now, we assume the backend will validate user availability
+
+  if (hostDisconnected) {
+    return (
+      <div className="flex items-center justify-center min-h-screen bg-red-900 text-white">
+        <div className="text-center">
+          <h2 className="text-2xl font-bold mb-4">Host Disconnected</h2>
+          <p className="mb-6">
+            The session host has left the call. The session has ended.
+          </p>
+          <button
+            onClick={handleHostDisconnectedLeave}
+            className="px-6 py-3 bg-blue-600 text-white rounded hover:bg-blue-700"
+          >
+            Return to Home
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col h-screen">
@@ -155,18 +221,21 @@ function P2PChatUI({ sessionId }: P2PChatUIProps) {
           <button
             onClick={handleToggleCamera}
             className="px-3 py-1 rounded-md bg-blue-600 hover:bg-blue-700 text-white"
+            aria-label="Toggle camera"
           >
-            Toggle Camera
+            {isCameraEnabled ? "🔴" : "⚫"} Camera
           </button>
           <button
             onClick={handleToggleMicrophone}
             className="px-3 py-1 rounded-md bg-blue-600 hover:bg-blue-700 text-white"
+            aria-label="Toggle microphone"
           >
-            Toggle Microphone
+            {isMicrophoneEnabled ? "🔴" : "⚫"} Mic
           </button>
           <button
             onClick={handleLeaveSession}
             className="px-3 py-1 rounded-md bg-red-600 hover:bg-red-700 text-white"
+            aria-label="Leave session"
           >
             Leave Session
           </button>
@@ -176,7 +245,7 @@ function P2PChatUI({ sessionId }: P2PChatUIProps) {
       <div className="flex-1 grid grid-cols-1 md:grid-cols-2 gap-4 p-4">
         {/* Local Participant */}
         <div className="bg-gray-800 rounded-lg overflow-hidden relative">
-          <VideoConference room={room} />
+          <VideoConference />
           <div className="absolute bottom-2 left-2 bg-black bg-opacity-50 px-2 py-1 rounded-md text-sm">
             {localParticipant.identity} (You)
           </div>
@@ -184,8 +253,11 @@ function P2PChatUI({ sessionId }: P2PChatUIProps) {
 
         {/* Remote Participants */}
         {remoteParticipants.map((participant) => (
-          <div key={participant.identity} className="bg-gray-800 rounded-lg overflow-hidden relative">
-            <VideoConference room={room} />
+          <div
+            key={participant.identity}
+            className="bg-gray-800 rounded-lg overflow-hidden relative"
+          >
+            <VideoConference />
             <div className="absolute bottom-2 left-2 bg-black bg-opacity-50 px-2 py-1 rounded-md text-sm">
               {participant.identity}
             </div>

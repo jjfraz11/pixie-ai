@@ -12,21 +12,49 @@ enum SessionType {
   BROADCAST
 }
 
+enum AccessType {
+  PUBLIC
+  PRIVATE
+}
+
+enum ParticipantRole {
+  HOST
+  GUEST
+  BROADCASTER
+  VIEWER
+}
+
 model User {
   id        String   @id @default(cuid())
   email     String   @unique
   password  String
   roles     String[]
+  resetToken String?
+  resetTokenExpires DateTime?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   sessions  Session[]
 }
 
 model Session {
-  id        String      @id @default(cuid())
-  type      SessionType
-  hostId    String
-  host      User        @relation(fields: [hostId], references: [id])
-  createdAt DateTime    @default(now())
+  sessionId     String         @id @default(cuid())
+  type          SessionType
+  accessType    AccessType     @default(PUBLIC)
+  password      String?
+  hostId        String
+  host          User           @relation(fields: [hostId], references: [id])
+  participants  Participant[]
+  createdAt     DateTime       @default(now())
+
   @@index([hostId])
+}
+
+model Participant {
+  participantId String           @id @default(cuid())
+  name          String
+  role          ParticipantRole
+  sessionId     String
+  session       Session          @relation(fields: [sessionId], references: [sessionId], onDelete: Cascade)
+
+  @@index([sessionId])
 }

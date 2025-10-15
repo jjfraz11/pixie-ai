@@ -37,22 +37,27 @@ app.configure(rest());
 // Configure Socket.io real-time APIs
 app.configure(socketio());
 
-// Custom error handler
-app.use((error: any, req: any, res: any, next: any) => {
-  console.error("Custom Error Handler:", error); // Log the error
-
-  const statusCode = error.statusCode || 500;
-  const message = error.message || "An unexpected error occurred";
-
-  // In production, avoid sending sensitive error details to the client
-  const errorResponse =
-    process.env.NODE_ENV === "production"
-      ? { message: "An internal server error occurred." }
-      : { message, ...error }; // Include full error in development
-
-  res.status(statusCode).json(errorResponse);
+// Rate limiting for authentication endpoints
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 5, // Limit each IP to 5 authentication attempts per windowMs
+  message: {
+    error:
+      "Too many authentication attempts from this IP, please try again after 15 minutes",
+    code: "RATE_LIMIT_EXCEEDED",
+  },
+  standardHeaders: true,
+  legacyHeaders: false,
+  skip: (req) => {
+    // Skip rate limiting for successful requests or development
+    return process.env.NODE_ENV === "development";
+  },
 });
 
+// Apply rate limiting to authentication routes
+app.use("/authentication", authLimiter);
+
+// Import services first
 import configureUsersService from "./services/users/users.service";
 import configureSessionsService from "./services/sessions/sessions.service";
 import configureAuthentication from "./services/authentication/authentication.service";
@@ -71,11 +76,14 @@ app.set("authentication", {
   },
 });
 
-// Configure authentication service
+// Configure authentication service (includes password reset functionality)
 configureAuthentication(app);
 
 app.configure(configureSessionsService);
 
 app.configure(configureUsersService);
+
+// Configure error handler after services are set up
+app.use(errorHandler());
 
 export default app;

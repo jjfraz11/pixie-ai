@@ -1,62 +1,72 @@
-'use client';
+"use client";
 
-import React, { useState, useCallback } from 'react';
-import { useAuth } from '../../contexts/AuthContext';
+import { useCallback, useState, FormEvent } from 'react';
+import { useAuth } from '../contexts/AuthContext';
 
 export default function RegisterForm() {
   const { login, setShowRegister } = useAuth();
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [registerError, setRegisterError] = useState<string | null>(null);
 
-  const handleRegister = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setRegisterError(null);
+  const handleRegister = useCallback(
+    async (e: FormEvent) => {
+      e.preventDefault();
+      setRegisterError(null);
 
-    try {
-      const response = await fetch('/api/users', { // Register via users service
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          email,
-          password,
-          roles: ['user'], // Default role for new users
-        }),
-      });
+      try {
+        const response = await fetch("/api/users", {
+          // Register via users service
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            email,
+            password,
+            roles: ["user"], // Default role for new users
+          }),
+        });
 
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.message || 'Registration failed');
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(errorData.message || "Registration failed");
+        }
+
+        // After successful registration, automatically log in the user
+        // This will trigger the login function in AuthContext
+        const loginResponse = await fetch("/api/authentication", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            strategy: "local",
+            email,
+            password,
+          }),
+        });
+
+        if (!loginResponse.ok) {
+          const errorData = await loginResponse.json();
+          throw new Error(
+            errorData.message || "Automatic login failed after registration"
+          );
+        }
+
+        const loginData = await loginResponse.json();
+        login(loginData.user, loginData.accessToken);
+        setShowRegister(false); // Hide registration form and show main content
+      } catch (err) {
+        setRegisterError(
+          err instanceof Error
+            ? err.message
+            : "An unknown error occurred during registration"
+        );
       }
-
-      // After successful registration, automatically log in the user
-      // This will trigger the login function in AuthContext
-      const loginResponse = await fetch('/api/authentication', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          strategy: 'local',
-          email,
-          password,
-        }),
-      });
-
-      if (!loginResponse.ok) {
-        const errorData = await loginResponse.json();
-        throw new Error(errorData.message || 'Automatic login failed after registration');
-      }
-
-      const loginData = await loginResponse.json();
-      login(loginData.user, loginData.accessToken);
-      setShowRegister(false); // Hide registration form and show main content
-    } catch (err) {
-      setRegisterError(err instanceof Error ? err.message : 'An unknown error occurred during registration');
-    }
-  };
+    },
+    [email, password, login, setShowRegister]
+  );
 
   const handleBackToLogin = useCallback(() => {
     setShowRegister(false);
@@ -65,7 +75,10 @@ export default function RegisterForm() {
   return (
     <form onSubmit={handleRegister} className="space-y-4">
       <div>
-        <label htmlFor="register-email" className="block text-sm font-medium text-gray-700">
+        <label
+          htmlFor="register-email"
+          className="block text-sm font-medium text-gray-700"
+        >
           Email
         </label>
         <input
@@ -78,7 +91,10 @@ export default function RegisterForm() {
         />
       </div>
       <div>
-        <label htmlFor="register-password" className="block text-sm font-medium text-gray-700">
+        <label
+          htmlFor="register-password"
+          className="block text-sm font-medium text-gray-700"
+        >
           Password
         </label>
         <input

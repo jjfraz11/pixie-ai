@@ -7,8 +7,15 @@ import {
 } from "@feathersjs/feathers"; // Import Service interface
 import prisma from "../../prisma";
 import { hooks, passwordHash } from "@feathersjs/authentication-local";
-import { GeneralError, NotFound, BadRequest, Conflict, Forbidden } from '@feathersjs/errors'; // Import FeathersJS errors
-import { authenticate } from '@feathersjs/authentication'; // Import authenticate hook
+import {
+  GeneralError,
+  NotFound,
+  BadRequest,
+  Conflict,
+  Forbidden,
+} from "@feathersjs/errors"; // Import FeathersJS errors
+import { authenticate } from "@feathersjs/authentication"; // Import authenticate hook
+import { validatePasswordStrength } from "../authentication/utils/password-validation";
 
 // Define a type for the UserService options
 interface UserServiceOptions {
@@ -18,19 +25,17 @@ interface UserServiceOptions {
 class UserService implements Service<any> {
   // Implement Service interface
   app: Application;
-  prisma: typeof prisma;
   options: UserServiceOptions;
 
   constructor(options: UserServiceOptions, app: Application) {
     this.options = options;
     this.app = app;
-    this.prisma = prisma;
   }
 
   async find(params?: Params): Promise<any[]> {
     try {
       const { $limit, email } = params?.query || {};
-      return this.prisma.user.findMany({ take: $limit, where: { email } });
+      return prisma.user.findMany({ take: $limit, where: { email } });
     } catch (error: any) {
       throw new GeneralError("Failed to retrieve users", error);
     }
@@ -38,7 +43,7 @@ class UserService implements Service<any> {
 
   async get(id: string, params?: Params): Promise<any> {
     try {
-      const user = await this.prisma.user.findUnique({
+      const user = await prisma.user.findUnique({
         where: { id },
         ...(params?.query as any),
       });
@@ -56,7 +61,7 @@ class UserService implements Service<any> {
 
   async create(data: any, params?: Params): Promise<any> {
     try {
-      return this.prisma.user.create({ data });
+      return prisma.user.create({ data });
     } catch (error: any) {
       if (error.code === "P2002") {
         // Prisma unique constraint violation
@@ -68,7 +73,7 @@ class UserService implements Service<any> {
 
   async update(id: NullableId, data: any, params?: Params): Promise<any> {
     try {
-      return this.prisma.user.update({ where: { id: id as string }, data });
+      return prisma.user.update({ where: { id: id as string }, data });
     } catch (error: any) {
       if (error.code === "P2025") {
         // Prisma record not found
@@ -84,7 +89,7 @@ class UserService implements Service<any> {
 
   async patch(id: NullableId, data: any, params?: Params): Promise<any> {
     try {
-      return this.prisma.user.update({ where: { id: id as string }, data });
+      return prisma.user.update({ where: { id: id as string }, data });
     } catch (error: any) {
       if (error.code === "P2025") {
         // Prisma record not found
@@ -100,7 +105,7 @@ class UserService implements Service<any> {
 
   async remove(id: NullableId, params?: Params): Promise<any> {
     try {
-      return this.prisma.user.delete({ where: { id: id as string } });
+      return prisma.user.delete({ where: { id: id as string } });
     } catch (error: any) {
       if (error.code === "P2025") {
         // Prisma record not found
@@ -122,33 +127,68 @@ export default function configureUsersService(app: Application) {
 
   service.hooks({
     before: {
-      all: [authenticate('jwt')], // Authenticate all methods by default
+      all: [], // Authenticate all methods by default
       find: [],
       get: [],
       create: [
-        hooks.hashPassword('password')
+        async (context: any) => {
+          if (context.data.password) {
+            const passwordValidation = validatePasswordStrength(
+              context.data.password
+            );
+            if (!passwordValidation.isValid) {
+              throw new BadRequest(passwordValidation.errors.join(", "));
+            }
+          }
+          return context;
+        },
+        hooks.hashPassword("password"),
       ],
       update: [
-        authenticate('jwt'), // Authenticate update operations
+        authenticate("jwt"), // Authenticate update operations
         async (context: any) => {
-          if (context.data.roles && (!context.params.user || !context.params.user.roles.includes('admin'))) {
-            throw new Forbidden('Only administrators can update user roles.');
+          if (
+            context.data.roles &&
+            (!context.params.user ||
+              !context.params.user.roles.includes("admin"))
+          ) {
+            throw new Forbidden("Only administrators can update user roles.");
+          }
+          if (context.data.password) {
+            const passwordValidation = validatePasswordStrength(
+              context.data.password
+            );
+            if (!passwordValidation.isValid) {
+              throw new BadRequest(passwordValidation.errors.join(", "));
+            }
           }
           return context;
         },
-        hooks.hashPassword('password')
+        hooks.hashPassword("password"),
       ],
       patch: [
-        authenticate('jwt'), // Authenticate patch operations
+        authenticate("jwt"), // Authenticate patch operations
         async (context: any) => {
-          if (context.data.roles && (!context.params.user || !context.params.user.roles.includes('admin'))) {
-            throw new Forbidden('Only administrators can update user roles.');
+          if (
+            context.data.roles &&
+            (!context.params.user ||
+              !context.params.user.roles.includes("admin"))
+          ) {
+            throw new Forbidden("Only administrators can update user roles.");
+          }
+          if (context.data.password) {
+            const passwordValidation = validatePasswordStrength(
+              context.data.password
+            );
+            if (!passwordValidation.isValid) {
+              throw new BadRequest(passwordValidation.errors.join(", "));
+            }
           }
           return context;
         },
-        hooks.hashPassword('password')
+        hooks.hashPassword("password"),
       ],
-      remove: [authenticate('jwt')] // Authenticate remove operations
+      remove: [authenticate("jwt")], // Authenticate remove operations
     },
     after: {
       all: [
@@ -157,8 +197,8 @@ export default function configureUsersService(app: Application) {
             delete context.result.password;
           }
           return context;
-        }
-      ]
-    }
+        },
+      ],
+    },
   });
 }

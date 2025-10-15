@@ -1,21 +1,15 @@
-# Implementation Plan: [FEATURE]
+# Implementation Plan: Multi-purpose Real-time Communication Platform
 
-**Branch**: `[###-feature-name]` | **Date**: [DATE] | **Spec**: [link]
+**Branch**: `001-communication-platform` | **Date**: 2025-10-15 | **Spec**: /specs/001-this-should-be/spec.md
 **Input**: Feature specification from `/specs/[###-feature-name]/spec.md`
 
 **Note**: This template is filled in by the `/speckit.plan` command. See `.specify/templates/commands/plan.md` for the execution workflow.
 
 ## Summary
 
-[Extract from feature spec: primary requirement + technical approach from research]
+This feature introduces a multi-purpose real-time communication platform supporting P2P video chats and large-scale livestream broadcasts. The technical approach leverages Next.js for the frontend, Feathers.js and LiveKit for the backend, with Prisma and PostgreSQL for data storage.
 
 ## Technical Context
-
-<!--
-  ACTION REQUIRED: Replace the content in this section with the technical details
-  for the project. The structure here is presented in advisory capacity to guide
-  the iteration process.
--->
 
 **Language/Version**: TypeScript (latest stable), Node.js (latest LTS)  
 **Primary Dependencies**: Feathers.js v5, LiveKit, Next.js, React, Prisma, Tailwind CSS  
@@ -31,7 +25,7 @@
 
 *GATE: Must pass before Phase 0 research. Re-check after Phase 1 design.*
 
-No specific core principles or gates are defined in the project's constitution (`.specify/memory/constitution.md`). Therefore, no formal constitution check can be performed at this time.
+This project adheres to the Pixie AI Constitution defined in `.specify/memory/constitution.md`. All aspects of this plan and subsequent implementation MUST comply with the principles and guidelines outlined therein.
 
 ## Project Structure
 
@@ -48,12 +42,6 @@ specs/[###-feature]/
 ```
 
 ### Source Code (repository root)
-<!--
-  ACTION REQUIRED: Replace the placeholder tree below with the concrete layout
-  for this feature. Delete unused options and expand the chosen structure with
-  real paths (e.g., apps/admin, packages/something). The delivered plan must
-  not include Option labels.
--->
 
 backend/
 ├── src/
@@ -78,11 +66,3 @@ frontend/
 
 **Structure Decision**: The project uses a web application structure with separate `backend` and `frontend` directories.
 
-## Complexity Tracking
-
-*Fill ONLY if Constitution Check has violations that must be justified*
-
-| Violation | Why Needed | Simpler Alternative Rejected Because |
-|-----------|------------|-------------------------------------|
-| [e.g., 4th project] | [current need] | [why 3 projects insufficient] |
-| [e.g., Repository pattern] | [specific problem] | [why direct DB access insufficient] |

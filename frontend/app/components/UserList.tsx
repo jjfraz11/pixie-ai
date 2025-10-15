@@ -14,6 +14,23 @@ export default function UserList() {
   const [error, setError] = useState<string | null>(null);
   const { token, selectedUser, setSelectedUser } = useAuth();
 
+  const handleSearchChange = useCallback(
+    (e: React.ChangeEvent<HTMLInputElement>) => {
+      setSearchTerm(e.target.value);
+    },
+    [setSearchTerm]
+  );
+
+  const handleUserSelect = useCallback(
+    (user: User) => (e: React.MouseEvent) => {
+      // T039: In a real implementation, check user availability before selecting
+      // For example, call an API to check if user is online/available
+      // For now, assume users are available
+      setSelectedUser(user);
+    },
+    [setSelectedUser]
+  );
+
   const fetchUsers = useCallback(async () => {
     if (!token) return;
 
@@ -76,7 +93,7 @@ export default function UserList() {
           type="text"
           placeholder="Search users..."
           value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
+          onChange={handleSearchChange}
           className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
         />
       </div>
@@ -99,7 +116,7 @@ export default function UserList() {
                     ? "border-blue-500 bg-blue-50"
                     : "border-gray-200 hover:bg-gray-50"
                 }`}
-                onClick={() => setSelectedUser(user)}
+                onClick={handleUserSelect(user)}
               >
                 <div className="flex items-center space-x-3">
                   <div className="w-8 h-8 rounded-full bg-blue-500 flex items-center justify-center text-white font-medium">

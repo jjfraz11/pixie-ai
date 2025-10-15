@@ -3,6 +3,18 @@ import { Type } from "@feathersjs/typebox";
 import { Application, Params } from "@feathersjs/feathers";
 import prisma from "../../prisma"; // Import prisma
 import { Conflict, GeneralError, Forbidden } from "@feathersjs/errors";
+import { authorize } from "../../hooks/authorization";
+import { Session } from "@prisma/client";
+
+// Define the API response type after mapping sessionId to id
+interface SessionResponse {
+  id: string;
+  type: string;
+  accessType: string;
+  password?: string | null;
+  hostId: string;
+  createdAt: string; // Serialized as date-time string
+}
 
 interface AuthenticatedParams extends Params {
   user?: {
@@ -62,48 +74,127 @@ class SessionService {
     this.prisma = prisma; // Initialize prisma
   }
 
-  async find(params?: AuthenticatedParams): Promise<any[]> {
+  async find(params?: AuthenticatedParams): Promise<SessionResponse[]> {
     return [];
   }
 
-  async get(id: string, params?: AuthenticatedParams): Promise<any> {
-    return { id };
+  async get(
+    id: string,
+    params?: AuthenticatedParams
+  ): Promise<SessionResponse> {
+    try {
+      const session = await this.prisma.session.findUnique({
+        where: { sessionId: id },
+      });
+      if (!session) {
+        throw new GeneralError("Session not found");
+      }
+      // Map sessionId to id for API response and serialize dates
+      const { sessionId, ...rest } = session;
+      return {
+        id: sessionId,
+        ...rest,
+        type: rest.type.toString(),
+        accessType: rest.accessType.toString(),
+        createdAt: rest.createdAt.toISOString(),
+      };
+    } catch (error: any) {
+      throw new GeneralError("Failed to get session", error);
+    }
   }
 
-  async create(data: any, params?: AuthenticatedParams): Promise<any> {
+  async create(
+    data: any,
+    params?: AuthenticatedParams
+  ): Promise<SessionResponse> {
     if (data.type !== "p2p" && data.type !== "broadcast") {
       throw new Error(
         'Invalid session type. Must be either "p2p" or "broadcast"'
       );
     }
 
-    if (data.type === "broadcast") {
-      // Check if the user has broadcaster role
-      if (
-        !params?.user ||
-        !params.user.roles ||
-        !params.user.roles.includes("broadcaster")
-      ) {
-        throw new Error(
-          'Only users with the "broadcaster" role can create broadcast sessions'
-        );
-      }
-    }
-
     if (data.type === "p2p") {
-      // Add any P2P specific validation here
+      // P2P sessions should enforce max 2 participants
+      // This will be enforced in the participants service
     }
 
     // Create the session in the database
     try {
-      const newSession = await this.prisma.session.create({ data });
-      return newSession; // Return the created session with an ID
+      const newSession = await this.prisma.session.create({
+        data: {
+          ...data,
+          type: data.type === "p2p" ? "P2P" : "BROADCAST",
+        },
+      });
+      // Map sessionId to id for API response and serialize dates
+      const { sessionId, ...rest } = newSession;
+      return {
+        id: sessionId,
+        ...rest,
+        type: rest.type.toString(),
+        accessType: rest.accessType.toString(),
+        createdAt: rest.createdAt.toISOString(),
+      };
     } catch (error: any) {
       if (error.code === "P2002") {
         // Prisma unique constraint violation
         throw new Conflict("Session already exists");
       }
       throw new GeneralError("Failed to create session", error);
+    }
+  }
+
+  async patch(
+    id: string,
+    data: any,
+    params?: AuthenticatedParams
+  ): Promise<SessionResponse> {
+    try {
+      const updatedSession = await this.prisma.session.update({
+        where: { sessionId: id },
+        data,
+      });
+      // Map sessionId to id for API response and serialize dates
+      const { sessionId, ...rest } = updatedSession;
+      return {
+        id: sessionId,
+        ...rest,
+        type: rest.type.toString(),
+        accessType: rest.accessType.toString(),
+        createdAt: rest.createdAt.toISOString(),
+      };
+    } catch (error: any) {
+      if (error.code === "P2025") {
+        // Prisma record not found
+        throw new GeneralError("Session not found");
+      }
+      throw new GeneralError("Failed to update session", error);
+    }
+  }
+
+  async remove(
+    id: string,
+    params?: AuthenticatedParams
+  ): Promise<SessionResponse> {
+    try {
+      const deletedSession = await this.prisma.session.delete({
+        where: { sessionId: id },
+      });
+      // Map sessionId to id for API response and serialize dates
+      const { sessionId, ...rest } = deletedSession;
+      return {
+        id: sessionId,
+        ...rest,
+        type: rest.type.toString(),
+        accessType: rest.accessType.toString(),
+        createdAt: rest.createdAt.toISOString(),
+      };
+    } catch (error: any) {
+      if (error.code === "P2025") {
+        // Prisma record not found
+        throw new GeneralError("Session not found");
+      }
+      throw new GeneralError("Failed to delete session", error);
     }
   }
 }
@@ -123,7 +214,7 @@ export default function (app: Application) {
 
   service.hooks({
     before: {
-      all: [],
+      all: [authorize()], // Require authentication for all operations
       find: [],
       get: [],
       create: [
@@ -134,6 +225,7 @@ export default function (app: Application) {
           }
           return context;
         },
+        // Remove RBAC for broadcast sessions - any authenticated user can create
       ],
       patch: [
         async (context: any) => {
