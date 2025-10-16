@@ -13,7 +13,5 @@ export const userDataSchema = Type.Pick(userSchema, [
     "email",
     "password",
     "roles",
-    "resetToken",
-    "resetTokenExpires",
 ]);
 export const userPatchSchema = Type.Partial(userDataSchema);

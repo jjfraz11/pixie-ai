@@ -1,19 +1,21 @@
-import { LocalStrategy } from "@feathersjs/authentication-local";
-import { AuthenticationService, JWTStrategy } from "@feathersjs/authentication";
-import { Application } from "@feathersjs/feathers";
-import configurePasswordResetService from "./password-reset.service";
+import { Application, HookContext } from '@feathersjs/feathers';
+import { AuthenticationService, JWTStrategy } from '@feathersjs/authentication';
+import { LocalStrategy, passwordHash } from '@feathersjs/authentication-local';
+import { BadRequest } from '@feathersjs/errors';
+import { hooks as schemaHooks, resolve } from '@feathersjs/schema';
+import bcrypt from 'bcrypt';
+
+import configurePasswordResetService from './password-reset.service';
+import { User } from '../users/users.schema';
 
 export default function configureAuthenticationService(app: Application) {
-  console.log(
-    "Authentication entity setting:",
-    app.get("authentication").entity
-  ); // Log entity setting
+  console.log('Authentication entity setting:', app.get('authentication').entity); // Log entity setting
   const authentication = new AuthenticationService(app);
 
-  authentication.register("jwt", new JWTStrategy());
-  authentication.register("local", new LocalStrategy());
+  authentication.register('jwt', new JWTStrategy());
+  authentication.register('local', new LocalStrategy());
 
-  app.use("/authentication", authentication);
+  app.use('/authentication', authentication);
 
   // Configure password reset service as part of authentication
   configurePasswordResetService(app);
@@ -27,7 +29,7 @@ export default function configureAuthenticationService(app: Application) {
   // For now, we'll rely on rate limiting implemented in app.ts
 
   // Add hooks to the authentication service
-  app.service("authentication").hooks({
+  app.service('authentication').hooks({
     before: {
       create: [
         async (context: any) => {
@@ -35,11 +37,16 @@ export default function configureAuthenticationService(app: Application) {
             if (context.data.captcha !== 'pixie') {
               throw new BadRequest('Invalid CAPTCHA');
             }
+            const passwordHash = await bcrypt.hash(context.data.password, 10);
+            context.data.passwordHash = passwordHash;
+            // context.data.password = passwordHash;
+            delete context.data.captcha;
           }
           // Log authentication attempts for debugging
-          console.log("Authentication attempt:", {
+          console.log('Authentication attempt:', {
             strategy: context.data?.strategy,
             email: context.data?.email,
+            contextData: context.data,
           });
           return context;
         },
@@ -48,10 +55,7 @@ export default function configureAuthenticationService(app: Application) {
     error: {
       all: [
         async (context: any) => {
-          console.error(
-            `Error in authentication service on method ${context.method}:`,
-            context.error
-          );
+          console.error(`Error in authentication service on method ${context.method}:`, context.error);
           return context;
         },
       ],

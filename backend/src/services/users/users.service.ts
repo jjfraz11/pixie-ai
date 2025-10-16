@@ -1,21 +1,13 @@
-import {
-  Application,
-  Service,
-  Params,
-  NullableId,
-  PaginationParams,
-} from "@feathersjs/feathers"; // Import Service interface
-import prisma from "../../prisma";
-import { hooks, passwordHash } from "@feathersjs/authentication-local";
-import {
-  GeneralError,
-  NotFound,
-  BadRequest,
-  Conflict,
-  Forbidden,
-} from "@feathersjs/errors"; // Import FeathersJS errors
-import { authenticate } from "@feathersjs/authentication"; // Import authenticate hook
-import { validatePasswordStrength } from "../authentication/utils/password-validation";
+import { Application, Service, Params, NullableId, HookContext } from '@feathersjs/feathers'; // Import Service interface
+import prisma from '@/prisma';
+import { GeneralError, NotFound, BadRequest, Conflict, Forbidden } from '@feathersjs/errors'; // Import FeathersJS errors
+import { authenticate } from '@feathersjs/authentication'; // Import authenticate hook
+import { validatePasswordStrength } from '@/services/authentication/utils/password-validation';
+import { passwordHash } from '@feathersjs/authentication-local';
+import { hooks as schemaHooks, resolve } from '@feathersjs/schema';
+import bcrypt from 'bcrypt';
+import { User } from './users.schema';
+import { userDataResolver } from './users.resolvers';
 
 // Define a type for the UserService options
 interface UserServiceOptions {
@@ -37,7 +29,7 @@ class UserService implements Service<any> {
       const { $limit, email } = params?.query || {};
       return prisma.user.findMany({ take: $limit, where: { email } });
     } catch (error: any) {
-      throw new GeneralError("Failed to retrieve users", error);
+      throw new GeneralError('Failed to retrieve users', error);
     }
   }
 
@@ -61,13 +53,14 @@ class UserService implements Service<any> {
 
   async create(data: any, params?: Params): Promise<any> {
     try {
+      // The password hashing hook should have set passwordHash and removed password and captcha
       return prisma.user.create({ data });
     } catch (error: any) {
-      if (error.code === "P2002") {
+      if (error.code === 'P2002') {
         // Prisma unique constraint violation
-        throw new Conflict("User with this email already exists");
+        throw new Conflict('User with this email already exists');
       }
-      throw new GeneralError("Failed to create user", error);
+      throw new GeneralError('Failed to create user', error);
     }
   }
 
@@ -75,13 +68,13 @@ class UserService implements Service<any> {
     try {
       return prisma.user.update({ where: { id: id as string }, data });
     } catch (error: any) {
-      if (error.code === "P2025") {
+      if (error.code === 'P2025') {
         // Prisma record not found
         throw new NotFound(`User with id '${id}' not found`);
       }
-      if (error.code === "P2002") {
+      if (error.code === 'P2002') {
         // Prisma unique constraint violation
-        throw new Conflict("User with this email already exists");
+        throw new Conflict('User with this email already exists');
       }
       throw new GeneralError(`Failed to update user with id '${id}'`, error);
     }
@@ -91,13 +84,13 @@ class UserService implements Service<any> {
     try {
       return prisma.user.update({ where: { id: id as string }, data });
     } catch (error: any) {
-      if (error.code === "P2025") {
+      if (error.code === 'P2025') {
         // Prisma record not found
         throw new NotFound(`User with id '${id}' not found`);
       }
-      if (error.code === "P2002") {
+      if (error.code === 'P2002') {
         // Prisma unique constraint violation
-        throw new Conflict("User with this email already exists");
+        throw new Conflict('User with this email already exists');
       }
       throw new GeneralError(`Failed to patch user with id '${id}'`, error);
     }
@@ -107,7 +100,7 @@ class UserService implements Service<any> {
     try {
       return prisma.user.delete({ where: { id: id as string } });
     } catch (error: any) {
-      if (error.code === "P2025") {
+      if (error.code === 'P2025') {
         // Prisma record not found
         throw new NotFound(`User with id '${id}' not found`);
       }
@@ -118,12 +111,12 @@ class UserService implements Service<any> {
 
 export default function configureUsersService(app: Application) {
   const options: UserServiceOptions = {
-    paginate: app.get("paginate"),
+    paginate: app.get('paginate'),
   };
 
-  app.use("/users", new UserService(options, app));
+  app.use('/users', new UserService(options, app));
 
-  const service = app.service("users");
+  const service = app.service('users');
 
   service.hooks({
     before: {
@@ -132,66 +125,67 @@ export default function configureUsersService(app: Application) {
       get: [],
       create: [
         async (context: any) => {
-          if (context.data.captcha !== 'pixie') {
-            throw new BadRequest('Invalid CAPTCHA');
-          }
+          // if (context.data.captcha && context.data.captcha !== 'pixie') {
+          //   throw new BadRequest('Invalid CAPTCHA');
+          // }
+
           if (context.data.password) {
-            const passwordValidation = validatePasswordStrength(
-              context.data.password
-            );
+            const passwordValidation = validatePasswordStrength(context.data.password);
             if (!passwordValidation.isValid) {
-              throw new BadRequest(passwordValidation.errors.join(", "));
+              throw new BadRequest(passwordValidation.errors.join(', '));
             }
+            // Hash the password and set password
+            context.data.password = await bcrypt.hash(context.data.password, 12);
+            // Remove the plain password and captcha
+            // context.data.password = context.data.passwordHash;
+            // delete context.data.password;
+            delete context.data.captcha;
           }
           return context;
         },
-        hooks.hashPassword("password"),
+        schemaHooks.resolveData(userDataResolver),
       ],
       update: [
-        authenticate("jwt"), // Authenticate update operations
+        authenticate('jwt'), // Authenticate update operations
         async (context: any) => {
-          if (
-            context.data.roles &&
-            (!context.params.user ||
-              !context.params.user.roles.includes("admin"))
-          ) {
-            throw new Forbidden("Only administrators can update user roles.");
+          if (context.data.roles && (!context.params.user || !context.params.user.roles.includes('admin'))) {
+            throw new Forbidden('Only administrators can update user roles.');
           }
           if (context.data.password) {
-            const passwordValidation = validatePasswordStrength(
-              context.data.password
-            );
+            const passwordValidation = validatePasswordStrength(context.data.password);
             if (!passwordValidation.isValid) {
-              throw new BadRequest(passwordValidation.errors.join(", "));
+              throw new BadRequest(passwordValidation.errors.join(', '));
             }
+            // Hash the password and set password
+            context.data.password = await bcrypt.hash(context.data.password, 12);
+            // Remove the plain password
+            delete context.data.password;
           }
           return context;
         },
-        hooks.hashPassword("password"),
+        schemaHooks.resolveData(userDataResolver),
       ],
       patch: [
-        authenticate("jwt"), // Authenticate patch operations
+        authenticate('jwt'), // Authenticate patch operations
         async (context: any) => {
-          if (
-            context.data.roles &&
-            (!context.params.user ||
-              !context.params.user.roles.includes("admin"))
-          ) {
-            throw new Forbidden("Only administrators can update user roles.");
+          if (context.data.roles && (!context.params.user || !context.params.user.roles.includes('admin'))) {
+            throw new Forbidden('Only administrators can update user roles.');
           }
           if (context.data.password) {
-            const passwordValidation = validatePasswordStrength(
-              context.data.password
-            );
+            const passwordValidation = validatePasswordStrength(context.data.password);
             if (!passwordValidation.isValid) {
-              throw new BadRequest(passwordValidation.errors.join(", "));
+              throw new BadRequest(passwordValidation.errors.join(', '));
             }
+            // Hash the password and set password
+            context.data.password = await bcrypt.hash(context.data.password, 12);
+            // Remove the plain password
+            delete context.data.password;
           }
           return context;
         },
-        hooks.hashPassword("password"),
+        schemaHooks.resolveData(userDataResolver),
       ],
-      remove: [authenticate("jwt")], // Authenticate remove operations
+      remove: [authenticate('jwt')], // Authenticate remove operations
     },
     after: {
       all: [

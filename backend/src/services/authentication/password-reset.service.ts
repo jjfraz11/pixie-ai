@@ -1,9 +1,9 @@
-import { Application, Service, Params, NullableId } from "@feathersjs/feathers";
-import { BadRequest, NotFound, GeneralError } from "@feathersjs/errors";
-import prisma from "../../prisma";
-import crypto from "crypto";
-import bcrypt from "bcrypt";
-import { validatePasswordStrength } from "./utils/password-validation";
+import { Application, Service, Params, NullableId } from '@feathersjs/feathers';
+import { BadRequest, NotFound, GeneralError } from '@feathersjs/errors';
+import prisma from '../../prisma';
+import crypto from 'crypto';
+import bcrypt from 'bcrypt';
+import { validatePasswordStrength } from './utils/password-validation';
 
 interface PasswordResetOptions {
   paginate?: any;
@@ -34,35 +34,35 @@ class PasswordResetService implements Service<any> {
   }
 
   async find(params?: Params): Promise<any[]> {
-    throw new GeneralError("Method not implemented");
+    throw new GeneralError('Method not implemented');
   }
 
   async get(id: string, params?: Params): Promise<any> {
-    throw new GeneralError("Method not implemented");
+    throw new GeneralError('Method not implemented');
   }
 
   async create(data: any, params?: Params): Promise<any> {
     const { action, email, token, newPassword } = data;
 
-    if (action === "request") {
+    if (action === 'request') {
       return this.requestPasswordReset(email);
-    } else if (action === "change") {
+    } else if (action === 'change') {
       return this.changePassword(token, newPassword);
     }
 
-    throw new BadRequest("Invalid action");
+    throw new BadRequest('Invalid action');
   }
 
   async update(id: NullableId, data: any, params?: Params): Promise<any> {
-    throw new GeneralError("Method not implemented");
+    throw new GeneralError('Method not implemented');
   }
 
   async patch(id: NullableId, data: any, params?: Params): Promise<any> {
-    throw new GeneralError("Method not implemented");
+    throw new GeneralError('Method not implemented');
   }
 
   async remove(id: NullableId, params?: Params): Promise<any> {
-    throw new GeneralError("Method not implemented");
+    throw new GeneralError('Method not implemented');
   }
 
   private async requestPasswordReset(email: string): Promise<any> {
@@ -70,7 +70,7 @@ class PasswordResetService implements Service<any> {
       // Validate email format
       const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
       if (!emailRegex.test(email)) {
-        throw new BadRequest("Invalid email format");
+        throw new BadRequest('Invalid email format');
       }
 
       // Check rate limiting
@@ -86,10 +86,8 @@ class PasswordResetService implements Service<any> {
       }
 
       if (rateLimitEntry.count >= this.options.rateLimitMaxRequests!) {
-        this.logSecurityEvent("rate_limit_exceeded", { email });
-        throw new BadRequest(
-          "Too many password reset requests. Please try again later."
-        );
+        this.logSecurityEvent('rate_limit_exceeded', { email });
+        throw new BadRequest('Too many password reset requests. Please try again later.');
       }
 
       rateLimitEntry.count++;
@@ -103,16 +101,13 @@ class PasswordResetService implements Service<any> {
         // Don't reveal if user exists or not - return same success message
         return {
           success: true,
-          message:
-            "If an account with that email exists, a password reset email has been sent.",
+          message: 'If an account with that email exists, a password reset email has been sent.',
         };
       }
 
       // Generate reset token using crypto.randomBytes
-      const resetToken = crypto.randomBytes(32).toString("hex");
-      const resetTokenExpires = new Date(
-        Date.now() + this.options.resetTokenExpirationMinutes! * 60 * 1000
-      );
+      const resetToken = crypto.randomBytes(32).toString('hex');
+      const resetTokenExpires = new Date(Date.now() + this.options.resetTokenExpirationMinutes! * 60 * 1000);
 
       await prisma.user.update({
         where: { id: user.id },
@@ -122,45 +117,41 @@ class PasswordResetService implements Service<any> {
         },
       });
 
-      this.logSecurityEvent("password_reset_requested", {
+      this.logSecurityEvent('password_reset_requested', {
         userId: user.id,
         email,
       });
 
       // Send email with reset token
-      await this.app.service("email").create({
+      await this.app.service('email').create({
         to: user.email,
-        subject: "Password Reset Request",
+        subject: 'Password Reset Request',
         text: `Your password reset token is: ${resetToken}`,
-        html: `<p>Your password reset token is: <strong>${resetToken}</strong></p>`
+        html: `<p>Your password reset token is: <strong>${resetToken}</strong></p>`,
       });
 
       return {
         success: true,
-        message:
-          "If an account with that email exists, a password reset email has been sent.",
+        message: 'If an account with that email exists, a password reset email has been sent.',
       };
     } catch (error: any) {
       if (error instanceof BadRequest) {
         throw error;
       }
-      this.logSecurityEvent("password_reset_request_failed", {
+      this.logSecurityEvent('password_reset_request_failed', {
         email,
         error: error.message,
       });
-      throw new GeneralError("Failed to request password reset", error);
+      throw new GeneralError('Failed to request password reset', error);
     }
   }
 
-  private async changePassword(
-    token: string,
-    newPassword: string
-  ): Promise<any> {
+  private async changePassword(token: string, newPassword: string): Promise<any> {
     try {
       // Validate password strength using utility function
       const passwordValidation = validatePasswordStrength(newPassword);
       if (!passwordValidation.isValid) {
-        throw new BadRequest(passwordValidation.errors.join(", "));
+        throw new BadRequest(passwordValidation.errors.join(', '));
       }
 
       const user = await prisma.user.findFirst({
@@ -173,11 +164,11 @@ class PasswordResetService implements Service<any> {
       });
 
       if (!user) {
-        this.logSecurityEvent("password_reset_failed", {
-          token: token.substring(0, 8) + "...",
-          reason: "invalid_token",
+        this.logSecurityEvent('password_reset_failed', {
+          token: token.substring(0, 8) + '...',
+          reason: 'invalid_token',
         });
-        throw new BadRequest("Invalid or expired reset token");
+        throw new BadRequest('Invalid or expired reset token');
       }
 
       // Hash the new password using bcrypt
@@ -192,18 +183,18 @@ class PasswordResetService implements Service<any> {
         },
       });
 
-      this.logSecurityEvent("password_reset_successful", { userId: user.id });
+      this.logSecurityEvent('password_reset_successful', { userId: user.id });
 
       return {
         success: true,
-        message: "Password changed successfully",
+        message: 'Password changed successfully',
       };
     } catch (error: any) {
       if (error instanceof BadRequest) {
         throw error;
       }
-      this.logSecurityEvent("password_reset_failed", { error: error.message });
-      throw new GeneralError("Failed to change password", error);
+      this.logSecurityEvent('password_reset_failed', { error: error.message });
+      throw new GeneralError('Failed to change password', error);
     }
   }
 
@@ -227,32 +218,27 @@ class PasswordResetService implements Service<any> {
       });
 
       if (result.count > 0) {
-        this.logSecurityEvent("expired_tokens_cleaned", {
+        this.logSecurityEvent('expired_tokens_cleaned', {
           count: result.count,
         });
       }
     } catch (error: any) {
-      console.error("Failed to cleanup expired tokens:", error);
+      console.error('Failed to cleanup expired tokens:', error);
     }
   }
 }
 
 export default function configurePasswordResetService(app: Application) {
   const options: PasswordResetOptions = {
-    paginate: app.get("paginate"),
-    resetTokenExpirationMinutes: parseInt(
-      process.env.RESET_TOKEN_EXPIRATION_MINUTES || "60"
-    ),
-    rateLimitWindowMs: parseInt(process.env.RATE_LIMIT_WINDOW_MS || "900000"), // 15 minutes
-    rateLimitMaxRequests: parseInt(process.env.RATE_LIMIT_MAX_REQUESTS || "5"),
+    paginate: app.get('paginate'),
+    resetTokenExpirationMinutes: parseInt(process.env.RESET_TOKEN_EXPIRATION_MINUTES || '60'),
+    rateLimitWindowMs: parseInt(process.env.RATE_LIMIT_WINDOW_MS || '900000'), // 15 minutes
+    rateLimitMaxRequests: parseInt(process.env.RATE_LIMIT_MAX_REQUESTS || '5'),
   };
 
-  app.use(
-    "/authentication/password-reset",
-    new PasswordResetService(options, app)
-  );
+  app.use('/authentication/password-reset', new PasswordResetService(options, app));
 
-  const service = app.service("authentication/password-reset");
+  const service = app.service('authentication/password-reset');
 
   // Add hooks to password reset service for proper status codes
   service.hooks({
@@ -271,9 +257,7 @@ export default function configurePasswordResetService(app: Application) {
 
   // Schedule periodic cleanup of expired tokens (every hour)
   setInterval(() => {
-    const passwordResetService = app.service(
-      "authentication/password-reset"
-    ) as any;
+    const passwordResetService = app.service('authentication/password-reset') as any;
     passwordResetService.cleanupExpiredTokens();
   }, 60 * 60 * 1000); // 1 hour
 

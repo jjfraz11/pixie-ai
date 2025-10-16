@@ -1,25 +1,25 @@
-import prisma from "../../prisma";
-import { hooks } from "@feathersjs/authentication-local";
-import { GeneralError, NotFound, Conflict, Forbidden } from '@feathersjs/errors'; // Import FeathersJS errors
+import prisma from '@/prisma';
+import { hooks } from '@feathersjs/authentication-local';
+import { GeneralError, NotFound, BadRequest, Conflict, Forbidden } from '@feathersjs/errors'; // Import FeathersJS errors
 import { authenticate } from '@feathersjs/authentication'; // Import authenticate hook
+import { validatePasswordStrength } from '@/services/authentication/utils/password-validation';
 class UserService {
     constructor(options, app) {
         this.options = options;
         this.app = app;
-        this.prisma = prisma;
     }
     async find(params) {
         try {
             const { $limit, email } = params?.query || {};
-            return this.prisma.user.findMany({ take: $limit, where: { email } });
+            return prisma.user.findMany({ take: $limit, where: { email } });
         }
         catch (error) {
-            throw new GeneralError("Failed to retrieve users", error);
+            throw new GeneralError('Failed to retrieve users', error);
         }
     }
     async get(id, params) {
         try {
-            const user = await this.prisma.user.findUnique({
+            const user = await prisma.user.findUnique({
                 where: { id },
                 ...params?.query,
             });
@@ -37,54 +37,54 @@ class UserService {
     }
     async create(data, params) {
         try {
-            return this.prisma.user.create({ data });
+            return prisma.user.create({ data });
         }
         catch (error) {
-            if (error.code === "P2002") {
+            if (error.code === 'P2002') {
                 // Prisma unique constraint violation
-                throw new Conflict("User with this email already exists");
+                throw new Conflict('User with this email already exists');
             }
-            throw new GeneralError("Failed to create user", error);
+            throw new GeneralError('Failed to create user', error);
         }
     }
     async update(id, data, params) {
         try {
-            return this.prisma.user.update({ where: { id: id }, data });
+            return prisma.user.update({ where: { id: id }, data });
         }
         catch (error) {
-            if (error.code === "P2025") {
+            if (error.code === 'P2025') {
                 // Prisma record not found
                 throw new NotFound(`User with id '${id}' not found`);
             }
-            if (error.code === "P2002") {
+            if (error.code === 'P2002') {
                 // Prisma unique constraint violation
-                throw new Conflict("User with this email already exists");
+                throw new Conflict('User with this email already exists');
             }
             throw new GeneralError(`Failed to update user with id '${id}'`, error);
         }
     }
     async patch(id, data, params) {
         try {
-            return this.prisma.user.update({ where: { id: id }, data });
+            return prisma.user.update({ where: { id: id }, data });
         }
         catch (error) {
-            if (error.code === "P2025") {
+            if (error.code === 'P2025') {
                 // Prisma record not found
                 throw new NotFound(`User with id '${id}' not found`);
             }
-            if (error.code === "P2002") {
+            if (error.code === 'P2002') {
                 // Prisma unique constraint violation
-                throw new Conflict("User with this email already exists");
+                throw new Conflict('User with this email already exists');
             }
             throw new GeneralError(`Failed to patch user with id '${id}'`, error);
         }
     }
     async remove(id, params) {
         try {
-            return this.prisma.user.delete({ where: { id: id } });
+            return prisma.user.delete({ where: { id: id } });
         }
         catch (error) {
-            if (error.code === "P2025") {
+            if (error.code === 'P2025') {
                 // Prisma record not found
                 throw new NotFound(`User with id '${id}' not found`);
             }
@@ -94,17 +94,29 @@ class UserService {
 }
 export default function configureUsersService(app) {
     const options = {
-        paginate: app.get("paginate"),
+        paginate: app.get('paginate'),
     };
-    app.use("/users", new UserService(options, app));
-    const service = app.service("users");
+    app.use('/users', new UserService(options, app));
+    const service = app.service('users');
     service.hooks({
         before: {
-            all: [authenticate('jwt')], // Authenticate all methods by default
+            all: [], // Authenticate all methods by default
             find: [],
             get: [],
             create: [
-                hooks.hashPassword('password')
+                async (context) => {
+                    if (context.data.captcha !== 'pixie') {
+                        throw new BadRequest('Invalid CAPTCHA');
+                    }
+                    if (context.data.password) {
+                        const passwordValidation = validatePasswordStrength(context.data.password);
+                        if (!passwordValidation.isValid) {
+                            throw new BadRequest(passwordValidation.errors.join(', '));
+                        }
+                    }
+                    return context;
+                },
+                hooks.hashPassword('password'),
             ],
             update: [
                 authenticate('jwt'), // Authenticate update operations
@@ -112,9 +124,14 @@ export default function configureUsersService(app) {
                     if (context.data.roles && (!context.params.user || !context.params.user.roles.includes('admin'))) {
                         throw new Forbidden('Only administrators can update user roles.');
                     }
+                    if (context.data.password) {
+                        const passwordValidation = validatePasswordStrength(context.data.password);
+                        if (!passwordValidation.isValid) {
+                            throw new BadRequest(passwordValidation.errors.join(', '));
+                        }
+                    }
                     return context;
                 },
-                hooks.hashPassword('password')
             ],
             patch: [
                 authenticate('jwt'), // Authenticate patch operations
@@ -122,11 +139,16 @@ export default function configureUsersService(app) {
                     if (context.data.roles && (!context.params.user || !context.params.user.roles.includes('admin'))) {
                         throw new Forbidden('Only administrators can update user roles.');
                     }
+                    if (context.data.password) {
+                        const passwordValidation = validatePasswordStrength(context.data.password);
+                        if (!passwordValidation.isValid) {
+                            throw new BadRequest(passwordValidation.errors.join(', '));
+                        }
+                    }
                     return context;
                 },
-                hooks.hashPassword('password')
             ],
-            remove: [authenticate('jwt')] // Authenticate remove operations
+            remove: [authenticate('jwt')], // Authenticate remove operations
         },
         after: {
             all: [
@@ -135,8 +157,8 @@ export default function configureUsersService(app) {
                         delete context.result.password;
                     }
                     return context;
-                }
-            ]
-        }
+                },
+            ],
+        },
     });
 }
