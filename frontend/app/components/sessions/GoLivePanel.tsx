@@ -1,8 +1,9 @@
 'use client';
 
-import { useState, useCallback } from 'react';
-import { useRouter } from 'next/navigation';
-import { useAuth } from '@/app/contexts/AuthContext';
+import { useState, useCallback } from "react";
+import { useRouter } from "next/navigation";
+import { useAuth } from "@/contexts/AuthContext";
+import { goLive } from "@/lib/api"; // Import the goLive function
 
 interface GoLivePanelProps {
   className?: string;
@@ -35,29 +36,17 @@ export default function GoLivePanel({ className = '' }: GoLivePanelProps) {
       return;
     }
 
+    if (!token) {
+      setError("Authentication token is not available.");
+      return;
+    }
+
     try {
       setIsLoading(true);
       setError(null);
 
       // Create a broadcast session
-      const response = await fetch('/api/sessions', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          type: 'broadcast',
-          title: streamTitle.trim(),
-        }),
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.message || 'Failed to start stream');
-      }
-
-      const session = await response.json();
+      const session = await goLive(token, streamTitle.trim());
 
       // Redirect to the broadcast room
       router.push(`/broadcast/${session.id}`);
@@ -119,7 +108,7 @@ export default function GoLivePanel({ className = '' }: GoLivePanelProps) {
 
               <button
                 type="submit"
-                disabled={isLoading || !streamTitle.trim()}
+                disabled={isLoading}
                 className={`w-full py-2 px-4 rounded-md text-sm font-medium transition-colors ${
                   isLoading || !streamTitle.trim()
                     ? 'bg-gray-300 text-gray-500 cursor-not-allowed'

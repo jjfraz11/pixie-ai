@@ -8,14 +8,19 @@ import {
   RoomAudioRenderer,
 } from "@livekit/components-react";
 import "@livekit/components-styles";
+import { useAuth } from "@/contexts/AuthContext";
+import { getBroadcastSession } from "@/lib/api";
 
 interface ViewerPageProps {
   sessionId: string;
-  title?: string;
+  livekitToken: string;
+  roomName: string;
+  wsUrl: string;
+  title: string;
 }
 
-function StreamViewer({ sessionId, title }: ViewerPageProps) {
-  const router = useRouter();
+function StreamViewer({ sessionId, livekitToken, roomName, wsUrl, title }: ViewerPageProps) {
+  const router = useRouter(); // Ensure useRouter is called within the component body
 
   const handleLeaveStream = () => {
     router.push("/");
@@ -24,7 +29,6 @@ function StreamViewer({ sessionId, title }: ViewerPageProps) {
   return (
     <div className="min-h-screen bg-gray-900">
       <div className="relative h-screen">
-        {/* Header */}
         <div className="absolute top-0 left-0 right-0 z-50 bg-black bg-opacity-50 p-4">
           <div className="flex items-center justify-between text-white">
             <div>
@@ -41,28 +45,13 @@ function StreamViewer({ sessionId, title }: ViewerPageProps) {
           </div>
         </div>
 
-        {/* Video area */}
         <div className="pt-16 h-full">
           <LiveKitRoom
-            serverUrl="ws://localhost:7880" // In real app, get from session data
-            token={`mock-viewer-token-${sessionId}`} // In real app, generate proper viewer token
+            serverUrl={wsUrl}
+            token={livekitToken}
             connect={true}
             onDisconnected={() => {
-              console.log("Disconnected from stream");
-
-              // Show error notification about broadcaster disconnection
-              const notification = document.createElement("div");
-              notification.className =
-                "fixed top-4 left-1/2 transform -translate-x-1/2 bg-red-600 text-white px-4 py-2 rounded-lg z-50";
-              notification.textContent = "Stream ended by broadcaster";
-              document.body.appendChild(notification);
-
-              setTimeout(() => {
-                if (document.body.contains(notification)) {
-                  document.body.removeChild(notification);
-                }
                 router.push("/");
-              }, 3000);
             }}
           >
             <div className="h-full">
@@ -76,50 +65,37 @@ function StreamViewer({ sessionId, title }: ViewerPageProps) {
   );
 }
 
-interface SessionData {
-  id: string;
-  type: string;
-  title: string;
-  status: string;
-}
-
 export default function ViewerPage() {
   const params = useParams();
   const router = useRouter();
+  const { token: authToken } = useAuth();
   const sessionId = params.sessionId as string;
 
-  const [sessionData, setSessionData] = useState<SessionData | null>(null);
+  const [sessionData, setSessionData] = useState<any | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   const fetchSessionData = useCallback(async () => {
+    if (!authToken) return;
     try {
       setLoading(true);
       setError(null);
 
-      // In a real app, you'd fetch the session data from your backend
-      // For demo purposes, we'll use mock data
-      const mockSessionData = {
-        id: sessionId,
-        type: "broadcast",
-        title: "Live Stream",
-        status: "active",
-      };
+      const session = await getBroadcastSession(sessionId, authToken);
 
-      setSessionData(mockSessionData);
+      setSessionData(session);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load stream");
-      console.error("Error fetching session data:", err);
     } finally {
       setLoading(false);
     }
-  }, [sessionId]);
+  }, [sessionId, authToken]);
 
   useEffect(() => {
-    if (sessionId) {
+    if (sessionId && authToken) {
       fetchSessionData();
     }
-  }, [sessionId, fetchSessionData]);
+  }, [sessionId, fetchSessionData, authToken]);
 
   if (loading) {
     return (
@@ -150,5 +126,13 @@ export default function ViewerPage() {
     );
   }
 
-  return <StreamViewer sessionId={sessionId} title={sessionData.title} />;
+  return (
+    <StreamViewer
+        sessionId={sessionId}
+        livekitToken={sessionData.livekitToken}
+        roomName={`broadcast-${sessionData.id}`}
+        wsUrl={process.env.NEXT_PUBLIC_LIVEKIT_WS_URL || 'ws://localhost:7880'}
+        title={sessionData.title}
+    />
+  );
 }

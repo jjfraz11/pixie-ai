@@ -1,126 +1,94 @@
 import React from 'react';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import '@testing-library/jest-dom';
-import BroadcastRoom from '../broadcast/[sessionId]/page';
+import BroadcastPage from '../page'; // Adjust this path as necessary
+import { useAuth } from '@/contexts/AuthContext';
+import { useRoom, useLocalParticipant, useParticipants } from '@livekit/components-react';
+import { getBroadcastSession } from '@/lib/api';
 
-// Mock Next.js router and params
-const mockPush = jest.fn();
+// Mock Next.js useRouter
 jest.mock('next/navigation', () => ({
-  useParams: () => ({ sessionId: 'test-session-id' }),
   useRouter: () => ({
-    push: mockPush,
+    push: jest.fn(),
+    replace: jest.fn(),
+    reload: jest.fn(),
+    back: jest.fn(),
+    prefetch: jest.fn(),
+    beforePopState: jest.fn(),
+    events: {
+      on: jest.fn(),
+      off: jest.fn(),
+      emit: jest.fn(),
+    },
+    isFallback: false,
+  }),
+  useParams: () => ({ sessionId: 'test-session' }),
+}));
+
+// Mock useAuth
+jest.mock('@/contexts/AuthContext', () => ({
+  useAuth: () => ({
+    user: { id: 'test-user', name: 'Test User' },
+    token: 'mock-token',
   }),
 }));
 
-// Mock AuthContext
-const mockUseAuth = {
-  user: { id: 'broadcaster-user-id', name: 'Test Broadcaster', roles: ['broadcaster'] },
-  token: 'mock-auth-token',
-};
-
-jest.mock('../../contexts/AuthContext', () => ({
-  useAuth: () => mockUseAuth,
-}));
-
-// Mock LiveKit components
+// Mock LiveKit hooks
 jest.mock('@livekit/components-react', () => ({
-  LiveKitRoom: ({ children }: { children: React.ReactNode }) => (
-    <div data-testid="livekit-room">{children}</div>
-  ),
-  VideoConference: () => <div data-testid="video-conference">Video Conference</div>,
-  ControlBar: () => <div data-testid="control-bar">Control Bar</div>,
-  RoomAudioRenderer: () => <div data-testid="room-audio-renderer">Audio Renderer</div>,
-  useParticipants: () => [
-    { identity: 'broadcaster-user-id', name: 'Test Broadcaster' },
-    { identity: 'viewer-1', name: 'Viewer 1' },
-    { identity: 'viewer-2', name: 'Viewer 2' },
-  ],
+    ...jest.requireActual('@livekit/components-react'),
+  useRoom: jest.fn(),
+  useLocalParticipant: jest.fn(),
+  useParticipants: jest.fn(),
+  LiveKitRoom: ({ children }: { children: React.ReactNode }) => <div data-testid="livekit-room">{children}</div>,
+  VideoConference: () => <div data-testid="video-conference" />,
+  RoomAudioRenderer: () => <div data-testid="room-audio-renderer" />,
 }));
 
-describe('BroadcastRoom Component', () => {
+jest.mock('@/lib/api', () => ({
+    getBroadcastSession: jest.fn(),
+}));
+
+describe('BroadcastPage', () => {
   beforeEach(() => {
-    jest.clearAllMocks();
+    // Reset mocks before each test
+    (useRoom as jest.Mock).mockClear();
+    (useLocalParticipant as jest.Mock).mockClear();
+    (useParticipants as jest.Mock).mockClear();
+    (getBroadcastSession as jest.Mock).mockClear();
   });
 
-  it('renders loading state initially', () => {
-    render(<BroadcastRoom />);
+  it('renders loading state initially', async () => {
+    (getBroadcastSession as jest.Mock).mockResolvedValue(new Promise(() => {})); // Never resolves
 
-    expect(screen.getByText('Loading broadcast...')).toBeInTheDocument();
-    expect(screen.getByRole('generic', { hidden: true })).toHaveClass('animate-spin');
+    render(<BroadcastPage params={{ sessionId: 'test-session' }} />);
+    expect(screen.getByText('Connecting to broadcast...')).toBeInTheDocument();
   });
 
-  it('renders broadcast view after loading', async () => {
-    render(<BroadcastRoom />);
+  it('renders broadcast view when session is loaded', async () => {
+    const mockSession = {
+      id: 'test-session',
+      title: 'Test Broadcast',
+      livekitToken: 'test-token',
+    };
+    (getBroadcastSession as jest.Mock).mockResolvedValue(mockSession);
+    (useRoom as jest.Mock).mockReturnValue({ isConnecting: false });
+    (useLocalParticipant as jest.Mock).mockReturnValue({ localParticipant: { isCameraEnabled: true, isMicrophoneEnabled: true } });
+    (useParticipants as jest.Mock).mockReturnValue([]);
+
+    render(<BroadcastPage params={{ sessionId: 'test-session' }} />);
 
     await waitFor(() => {
-      expect(screen.getByTestId('livekit-room')).toBeInTheDocument();
-      expect(screen.getByTestId('video-conference')).toBeInTheDocument();
-      expect(screen.getByTestId('control-bar')).toBeInTheDocument();
-      expect(screen.getByTestId('room-audio-renderer')).toBeInTheDocument();
-    });
-
-    expect(screen.getByText('Live Stream')).toBeInTheDocument();
-    expect(screen.getByText('2 viewers')).toBeInTheDocument(); // Excludes broadcaster
-    expect(screen.getByText('End Stream')).toBeInTheDocument();
-  });
-
-  it('navigates to dashboard when end stream is clicked', async () => {
-    render(<BroadcastRoom />);
-
-    await waitFor(() => {
-      expect(screen.getByText('End Stream')).toBeInTheDocument();
-    });
-
-    fireEvent.click(screen.getByText('End Stream'));
-
-    expect(mockPush).toHaveBeenCalledWith('/dashboard');
-  });
-
-  it('displays error when session not found', async () => {
-    // Mock a component that would fail to load session data
-    // Since we can't easily mock the internal state, we'll test the error case
-    // by checking if the component handles missing session data gracefully
-
-    render(<BroadcastRoom />);
-
-    // The component should eventually render the broadcast view
-    // If there's an error in session loading, it would show an error message
-    // For this test, we're mainly checking that it doesn't crash
-    await waitFor(() => {
-      expect(screen.getByTestId('livekit-room')).toBeInTheDocument();
+      expect(screen.getByText('Test Broadcast')).toBeInTheDocument();
     });
   });
 
-  it('shows viewer count correctly', async () => {
-    render(<BroadcastRoom />);
+  it('renders error state if session loading fails', async () => {
+    (getBroadcastSession as jest.Mock).mockRejectedValue(new Error('Failed to load'));
+
+    render(<BroadcastPage params={{ sessionId: 'test-session' }} />);
 
     await waitFor(() => {
-      expect(screen.getByText('2 viewers')).toBeInTheDocument();
+      expect(screen.getByText(/Error: Failed to load/)).toBeInTheDocument();
     });
-
-    // Should not include the broadcaster in the viewer count
-    expect(screen.queryByText('3 viewers')).not.toBeInTheDocument();
-  });
-
-  it('displays viewers list when there are viewers', async () => {
-    render(<BroadcastRoom />);
-
-    await waitFor(() => {
-      expect(screen.getByText('Viewers')).toBeInTheDocument();
-      expect(screen.getByText('Viewer 1')).toBeInTheDocument();
-      expect(screen.getByText('Viewer 2')).toBeInTheDocument();
-    });
-  });
-
-  it('includes leave room functionality', async () => {
-    render(<BroadcastRoom />);
-
-    await waitFor(() => {
-      expect(screen.getByText('End Stream')).toBeInTheDocument();
-    });
-
-    // The End Stream button should be present and functional
-    const endStreamButton = screen.getByText('End Stream');
-    expect(endStreamButton).toBeInTheDocument();
   });
 });

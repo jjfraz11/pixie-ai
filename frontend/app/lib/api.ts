@@ -31,6 +31,15 @@ export interface UserResponse {
   updatedAt: string;
 }
 
+export interface SessionResponse {
+  id: string;
+  type: "broadcast" | "p2p";
+  title: string;
+  hostId: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface PasswordResetRequest {
   action: 'request';
   email: string;
@@ -108,6 +117,33 @@ export async function getUsersAPI(token: string): Promise<UserResponse[]> {
 }
 
 /**
+ * Create a broadcast session
+ */
+export async function goLive(
+  token: string,
+  title: string
+): Promise<SessionResponse> {
+  const response = await fetch("/api/sessions", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({
+      type: "broadcast",
+      title,
+    }),
+  });
+
+  if (!response.ok) {
+    const errorData = await response.json();
+    throw new Error(errorData.message || "Failed to start stream");
+  }
+
+  return response.json();
+}
+
+/**
  * Password reset request API call
  */
 export async function requestPasswordResetAPI(data: PasswordResetRequest): Promise<PasswordResetResponse> {
@@ -145,4 +181,8 @@ export async function changePasswordAPI(data: PasswordResetChange): Promise<Pass
   }
 
   return response.json();
+}
+
+export async function getBroadcastSession(sessionId: string, authToken: string) {
+  console.log(`getBroadcastSession function not yet implemented (sessionId: ${sessionId}, authToken: ${authToken})`)
 }

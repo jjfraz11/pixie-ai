@@ -91,7 +91,7 @@ export default function RegisterForm() {
         onClick={handleBackToLogin}
         className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-blue-600 hover:text-blue-700 focus:outline-none"
       >
-        Back to Login
+        Log In
       </button>
     </form>
   );

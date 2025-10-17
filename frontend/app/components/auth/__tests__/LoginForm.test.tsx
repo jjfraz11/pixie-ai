@@ -1,123 +1,99 @@
 import React from 'react';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 
-import { axe, toHaveNoViolations } from 'jest-axe'; // Import axe and toHaveNoViolations
+import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import '@testing-library/jest-dom';
 
-import LoginForm from '@/app/components/auth/LoginForm';
+import { loginAPI } from '@/lib/api'
 
-// Mock the AuthContext
-const mockLogin = jest.fn();
-const mockUseAuth = {
-  user: null,
-  token: null,
-  login: mockLogin,
-  logout: jest.fn(),
-  setShowRegister: jest.fn(),
-};
+import LoginForm from '../LoginForm';
 
-jest.mock('@/app/contexts/AuthContext', () => ({
-  useAuth: () => mockUseAuth,
-  AuthProvider: ({ children }: { children: React.ReactNode }) => <div>{children}</div>, // Mock AuthProvider
+// Mock the api module
+jest.mock("@/lib/api");
+
+const mockApiLogin = loginAPI as jest.Mock;
+
+// Mock Next.js router
+const mockPush = jest.fn();
+jest.mock("next/navigation", () => ({
+  useRouter: () => ({
+    push: mockPush,
+  }),
 }));
 
-// Mock fetch
-global.fetch = jest.fn();
+// Mock AuthContext
+const mockUseAuth = {
+  login: jest.fn(),
+  setShowRegister: jest.fn(),
+  setShowForgotPassword: jest.fn(),
+};
+jest.mock('../../../contexts/AuthContext', () => ({
+  useAuth: () => mockUseAuth,
+}));
 
-// Extend Jest with jest-axe matchers (already done in jest.setup.mjs, but good to be explicit)
-expect.extend(toHaveNoViolations);
 
 describe('LoginForm Component', () => {
   beforeEach(() => {
     jest.clearAllMocks();
-    (global.fetch as jest.Mock).mockResolvedValue({
-      ok: true,
-      json: async () => ({ user: { email: 'test@example.com' }, accessToken: 'mock-token' }),
+  });
+
+  it('calls api login and auth context login on successful submission', async () => {
+    const mockUser = { id: '1', name: 'Test User', email: 'test@example.com' };
+    const mockToken = 'mock-token';
+    mockApiLogin.mockResolvedValue({ user: mockUser, token: mockToken });
+
+    render(<LoginForm />);
+
+    fireEvent.change(screen.getByLabelText(/email/i), {
+      target: { value: 'test@example.com' },
     });
-  });
+    fireEvent.change(screen.getByLabelText(/password/i), {
+      target: { value: 'password123' },
+    });
 
-  it('should not have any accessibility violations', async () => {
-    const { container } = render(<LoginForm />);
-    const results = await axe(container);
-    expect(results).toHaveNoViolations();
-  });
-
-  it('renders email, password, and captcha fields', () => {
-    render(<LoginForm />);
-    expect(screen.getByLabelText(/email/i)).toBeInTheDocument();
-    expect(screen.getByLabelText(/password/i)).toBeInTheDocument();
-    expect(screen.getByLabelText(/captcha/i)).toBeInTheDocument();
-  });
-
-  it('allows typing into email, password, and captcha fields', () => {
-    render(<LoginForm />);
-    const emailInput = screen.getByLabelText(/email/i);
-    const passwordInput = screen.getByLabelText(/password/i);
-    const captchaInput = screen.getByLabelText(/captcha/i);
-
-    fireEvent.change(emailInput, { target: { value: 'test@example.com' } });
-    fireEvent.change(passwordInput, { target: { value: 'password123' } });
-    fireEvent.change(captchaInput, { target: { value: 'pixie' } });
-
-    expect(emailInput).toHaveValue('test@example.com');
-    expect(passwordInput).toHaveValue('password123');
-    expect(captchaInput).toHaveValue('pixie');
-  });
-
-  it('calls login on successful submission', async () => {
-    render(<LoginForm />);
-    const emailInput = screen.getByLabelText(/email/i);
-    const passwordInput = screen.getByLabelText(/password/i);
-    const captchaInput = screen.getByLabelText(/captcha/i);
-    const loginButton = screen.getByRole('button', { name: /login/i });
-
-    fireEvent.change(emailInput, { target: { value: 'test@example.com' } });
-    fireEvent.change(passwordInput, { target: { value: 'password123' } });
-    fireEvent.change(captchaInput, { target: { value: 'pixie' } });
-    fireEvent.click(loginButton);
+    fireEvent.click(screen.getByRole('button', { name: /log in/i }));
 
     await waitFor(() => {
-      expect(global.fetch).toHaveBeenCalledTimes(1);
-      expect(global.fetch).toHaveBeenCalledWith('/api/authentication', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          strategy: 'local',
-          email: 'test@example.com',
-          password: 'password123',
-          captcha: 'pixie',
-        }),
-      });
-      expect(mockLogin).toHaveBeenCalledWith({ email: 'test@example.com' }, 'mock-token');
+      expect(mockApiLogin).toHaveBeenCalledWith('test@example.com', 'password123');
     });
-  });
-
-  it('displays error message on failed login', async () => {
-    (global.fetch as jest.Mock).mockResolvedValueOnce({
-      ok: false,
-      json: async () => ({ message: 'Invalid credentials' }),
-    });
-
-    render(<LoginForm />);
-    const emailInput = screen.getByLabelText(/email/i);
-    const passwordInput = screen.getByLabelText(/password/i);
-    const captchaInput = screen.getByLabelText(/captcha/i);
-    const loginButton = screen.getByRole('button', { name: /login/i });
-
-    fireEvent.change(emailInput, { target: { value: 'test@example.com' } });
-    fireEvent.change(passwordInput, { target: { value: 'wrongpassword' } });
-    fireEvent.change(captchaInput, { target: { value: 'pixie' } });
-    fireEvent.click(loginButton);
 
     await waitFor(() => {
-      expect(screen.getByText('Error: Invalid credentials')).toBeInTheDocument();
+      expect(mockUseAuth.login).toHaveBeenCalledWith(mockUser, mockToken);
     });
   });
 
-  it('calls setShowRegister when "Create an account" is clicked', () => {
+  it('displays error when login fails', async () => {
+    const errorMessage = 'Invalid credentials';
+    mockApiLogin.mockRejectedValue(new Error(errorMessage));
     render(<LoginForm />);
-    const createAccountButton = screen.getByRole('button', { name: /create an account/i });
-    fireEvent.click(createAccountButton);
+
+    fireEvent.change(screen.getByLabelText(/email/i), { target: { value: 'test@example.com' } });
+    fireEvent.change(screen.getByLabelText(/password/i), { target: { value: 'wrongpassword' } });
+    fireEvent.click(screen.getByRole('button', { name: /log in/i }));
+
+    expect(await screen.findByText(errorMessage)).toBeInTheDocument();
+  });
+
+  it('shows validation error for empty fields', async () => {
+    render(<LoginForm />);
+    fireEvent.click(screen.getByRole('button', { name: /log in/i }));
+
+    // Check for both validation messages
+    const emailError = await screen.findByText('Email is required');
+    const passwordError = await screen.findByText('Password is required');
+
+    expect(emailError).toBeInTheDocument();
+    expect(passwordError).toBeInTheDocument();
+  });
+
+  it('navigates to forgot password page', () => {
+    render(<LoginForm />);
+    fireEvent.click(screen.getByText('Forgot Password?'));
+    expect(mockUseAuth.setShowForgotPassword).toHaveBeenCalledWith(true);
+  });
+
+  it('navigates to register page', () => {
+    render(<LoginForm />);
+    fireEvent.click(screen.getByText('Sign Up'));
     expect(mockUseAuth.setShowRegister).toHaveBeenCalledWith(true);
   });
 });

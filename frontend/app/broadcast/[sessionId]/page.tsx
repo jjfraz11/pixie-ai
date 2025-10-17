@@ -5,16 +5,14 @@ import { useParams, useRouter } from 'next/navigation';
 import {
   LiveKitRoom,
   VideoConference,
-  ControlBar,
   RoomAudioRenderer,
   useParticipants,
-  ParticipantTile,
   useLocalParticipant,
-} from '@livekit/components-react';
-import { Room, LocalParticipant } from 'livekit-client';
-import '@livekit/components-styles';
-import { useAuth } from '../../contexts/AuthContext';
-import { useLiveKit } from '../../contexts/LiveKitContext';
+} from "@livekit/components-react";
+import "@livekit/components-styles";
+import { useAuth } from "@/contexts/AuthContext";
+import { useLiveKit } from '@/contexts/LiveKitContext';
+import { getBroadcastSession } from "@/lib/api";
 
 interface BroadcastRoomProps {
   sessionId: string;
@@ -80,7 +78,6 @@ function BroadcastControlBar() {
 
 function BroadcastView({ sessionId, livekitToken, roomName, wsUrl, title }: BroadcastRoomProps) {
   const participants = useParticipants();
-  const { localParticipant } = useLocalParticipant();
   const router = useRouter();
 
   const handleEndStream = () => {
@@ -91,7 +88,6 @@ function BroadcastView({ sessionId, livekitToken, roomName, wsUrl, title }: Broa
   return (
     <div className="min-h-screen bg-gray-900">
       <div className="relative h-screen">
-        {/* Header */}
         <div className="absolute top-0 left-0 right-0 z-50 bg-black bg-opacity-50 p-4">
           <div className="flex items-center justify-between text-white">
             <div>
@@ -110,7 +106,6 @@ function BroadcastView({ sessionId, livekitToken, roomName, wsUrl, title }: Broa
           </div>
         </div>
 
-        {/* Main video area */}
         <div className="pt-16 h-full">
           <LiveKitRoom
             serverUrl={wsUrl}
@@ -134,7 +129,6 @@ function BroadcastView({ sessionId, livekitToken, roomName, wsUrl, title }: Broa
             }}
           >
             <div className="h-full flex flex-col">
-              {/* Main broadcaster view */}
               <div className="flex-1 relative">
                 <VideoConference />
               </div>
@@ -172,41 +166,46 @@ function BroadcastView({ sessionId, livekitToken, roomName, wsUrl, title }: Broa
   );
 }
 
-export default function BroadcastRoom() {
-  const params = useParams();
+export default function BroadcastPage({ params }: { params: { sessionId: string } }) {
   const router = useRouter();
   const { user, token: authToken } = useAuth();
   const { room, connectToRoom, disconnectFromRoom, connectionState, error: livekitError } = useLiveKit();
   const sessionId = params.sessionId as string;
 
+  const [sessionData, setSessionData] = useState<any | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   const fetchSessionData = useCallback(async () => {
+    if (!authToken) return;
     try {
       setLoading(true);
       setError(null);
 
       // In a real app, you'd fetch the session data from your backend
-      // For demo purposes, we'll use the sessionId to generate mock data
-      const mockSessionData = {
-        id: sessionId,
-        type: 'broadcast',
-        title: 'Live Stream',
-        livekitToken: 'mock-livekit-token',
-        roomName: `broadcast-${sessionId}`,
-        wsUrl: 'ws://localhost:7880',
-      };
+      // // For demo purposes, we'll use the sessionId to generate mock data
+      // const mockSessionData = {
+      //   id: sessionId,
+      //   type: 'broadcast',
+      //   title: 'Live Stream',
+      //   livekitToken: 'mock-livekit-token',
+      //   roomName: `broadcast-${sessionId}`,
+      //   wsUrl: 'ws://localhost:7880',
+      // };
 
-      // setSessionData(mockSessionData);
-      await connectToRoom(mockSessionData.livekitToken, mockSessionData.wsUrl);
+      // // setSessionData(mockSessionData);
+      // await connectToRoom(mockSessionData.livekitToken, mockSessionData.wsUrl);
+      const session = await getBroadcastSession(sessionId, authToken);
+
+      setSessionData(session);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load broadcast session');
-      console.error('Error fetching session data:', err);
+      setError(
+        err instanceof Error ? err.message : "Failed to load broadcast session"
+      );
     } finally {
       setLoading(false);
     }
-  }, [sessionId, connectToRoom]);
+  }, [sessionId, authToken]);
 
   useEffect(() => {
     if (authToken && sessionId) {
@@ -223,7 +222,7 @@ export default function BroadcastRoom() {
       <div className="min-h-screen bg-gray-900 flex items-center justify-center">
         <div className="text-center text-white">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-white mx-auto mb-4"></div>
-          <p>Loading broadcast...</p>
+          <p>Connecting to broadcast...</p>
         </div>
       </div>
     );
@@ -264,10 +263,10 @@ export default function BroadcastRoom() {
   return (
     <BroadcastView
       sessionId={sessionId}
-      livekitToken={''} // Not needed directly by BroadcastView anymore
-      roomName={room.name}
-      wsUrl={'ws://localhost:7880'}
-      title={'Live Stream'} // Get actual title from session data
+      livekitToken={sessionData.livekitToken}
+      roomName={`broadcast-${sessionData.id}`}
+      wsUrl={process.env.NEXT_PUBLIC_LIVEKIT_WS_URL || 'ws://localhost:7880'}
+      title={sessionData.title}
     />
   );
 }

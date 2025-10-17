@@ -11,8 +11,8 @@ import {
   useParticipants,
 } from "@livekit/components-react";
 
-import { useAuth } from "@/app/contexts/AuthContext";
-import { useLiveKit } from "@/app/contexts/LiveKitContext";
+import { useAuth } from "@/contexts/AuthContext";
+import { useLiveKit } from "@/contexts/LiveKitContext";
 
 interface P2PPageProps {
   params: { sessionId: string };
@@ -121,6 +121,8 @@ export default function P2PPage({ params }: P2PPageProps) {
         room={room}
         video={true}
         audio={true}
+        serverUrl=""
+        token=""
         data-lk-theme="default"
         onDisconnected={() => {
           console.log("Disconnected from LiveKit room");
