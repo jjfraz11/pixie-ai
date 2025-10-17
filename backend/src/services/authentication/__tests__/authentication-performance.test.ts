@@ -41,43 +41,38 @@ import { Application } from '@feathersjs/feathers';
 import assert from 'assert';
 
 import { getApp } from '@/app';
-import {
-  setupTestEnvironment,
-  teardownTestEnvironment,
-  createTestUser,
-  testContext,
-  makeApiRequest,
-  makeAuthenticatedApiRequest,
-} from '@/test-utils';
+import { TestServiceBuilder, createTestUser, makeApiRequest, makeAuthenticatedApiRequest } from '@/test-utils';
 import { DEFAULT_PASSWORD_STRONG, DEFAULT_CAPTCHA } from '@/test-utils/constants';
-import { serverManager } from '@/test-utils/core/server-manager';
 
-describe('Authentication Service - Performance & Concurrency', () => {
-  let app: Application;
+describe('Authentication Service - Performance & Concurrency (Modernized)', () => {
+  let builder: TestServiceBuilder;
   let port: number;
   let userService: any;
   let sessionsService: any;
   let participantsService: any;
-  let testUsers: Record<string, any>[] = [];
+  let testUsers: any[] = [];
 
   before(async () => {
-    // Start server to get a port
-    port = await serverManager.startServer(() => getApp());
+    // Initialize modern test utilities with unified setup
+    builder = await new TestServiceBuilder()
+      .withPerformanceMonitoring()
+      .withServiceDiscovery(() => getApp())
+      .build();
 
-    // Setup test environment
-    const setup = await setupTestEnvironment();
-    app = getApp();
+    port = builder.getPort() || 3030;
 
+    // Get services from the app
+    const app = getApp();
     userService = app.service('users');
     sessionsService = app.service('sessions');
     participantsService = app.service('participants');
 
-    // Create shared test users for all tests
-    const regularUser = await createTestUser(userService, 'regular-perf@example.com', DEFAULT_PASSWORD_STRONG, {
+    // Create shared test users for all tests using builder
+    const regularUser = await builder.createTestUser(userService, 'regular-perf@example.com', DEFAULT_PASSWORD_STRONG, {
       roles: ['USER'],
     });
 
-    const adminUser = await createTestUser(userService, 'admin-perf@example.com', DEFAULT_PASSWORD_STRONG, {
+    const adminUser = await builder.createTestUser(userService, 'admin-perf@example.com', DEFAULT_PASSWORD_STRONG, {
       roles: ['ADMIN'],
     });
 
@@ -85,13 +80,7 @@ describe('Authentication Service - Performance & Concurrency', () => {
   });
 
   after(async () => {
-    const services = {
-      users: userService,
-      sessions: sessionsService,
-      participants: participantsService,
-    };
-    await teardownTestEnvironment(services);
-    await serverManager.stopServer();
+    await builder.cleanup();
   });
 
   describe('Concurrent Authentication Handling', () => {

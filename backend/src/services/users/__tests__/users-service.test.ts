@@ -32,10 +32,7 @@ import { getApp } from '@/app';
 // Test Utilities
 import {
   TestServiceBuilder,
-  createUsers,
   STATUS_CODE_CREATED,
-  STATUS_CODE_UNAUTHORIZED,
-  STATUS_CODE_BAD_REQUEST,
   STATUS_CODE_SUCCESS,
   DEFAULT_PASSWORD_STRONG,
   createTestUser,
@@ -87,6 +84,7 @@ describe('Users Service - Core Service Registration & Configuration', () => {
     let regularUser: any;
 
     before(async () => {
+      // Create test users using builder for better caching and cleanup
       adminUser = await builder.createTestUser(
         userService,
         `admin-func-${Date.now()}@example.com`,

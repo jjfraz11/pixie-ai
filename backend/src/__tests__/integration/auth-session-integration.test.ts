@@ -38,18 +38,11 @@ import { Application } from '@feathersjs/feathers';
 import assert from 'assert';
 
 import { getApp } from '@/app';
-import {
-  setupTestEnvironment,
-  teardownTestEnvironment,
-  createTestUser,
-  makeApiRequest,
-  getAuthToken,
-  makeAuthenticatedApiRequest,
-} from '@/test-utils';
+import { TestServiceBuilder, createTestUser, makeApiRequest, makeAuthenticatedApiRequest } from '@/test-utils';
 import { DEFAULT_PASSWORD_STRONG, DEFAULT_CAPTCHA, STATUS_CODE_CREATED } from '@/test-utils/constants';
 
-describe('Authentication & Session Integration', () => {
-  let app: Application;
+describe('Authentication & Session Integration (Modernized)', () => {
+  let builder: TestServiceBuilder;
   let port: number;
   let userService: any;
   let sessionService: any;
@@ -57,10 +50,16 @@ describe('Authentication & Session Integration', () => {
   let livekitTokenService: any;
 
   before(async () => {
-    const setup = await setupTestEnvironment();
-    port = setup.port;
-    app = getApp();
+    // Initialize modern test utilities with unified setup
+    builder = await new TestServiceBuilder()
+      .withPerformanceMonitoring()
+      .withServiceDiscovery(() => getApp())
+      .build();
 
+    port = builder.getPort() || 3030;
+
+    // Get services from the app
+    const app = getApp();
     userService = app.service('users');
     sessionService = app.service('sessions');
     participantService = app.service('participants');
@@ -75,12 +74,7 @@ describe('Authentication & Session Integration', () => {
   });
 
   after(async () => {
-    const services = {
-      users: userService,
-      sessions: sessionService,
-      participants: participantService,
-    };
-    await teardownTestEnvironment(services);
+    await builder.cleanup();
   });
 
   describe('Complete User Journey - Registration to Session', () => {

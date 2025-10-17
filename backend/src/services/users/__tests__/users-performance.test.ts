@@ -39,8 +39,7 @@ import { Application, Params } from '@feathersjs/feathers';
 import assert from 'assert';
 
 import { getApp } from '@/app';
-import { setupTestEnvironment, teardownTestEnvironment, createTestUser } from '@/test-utils';
-import { DEFAULT_PASSWORD_STRONG } from '@/test-utils/constants';
+import { TestServiceBuilder, createTestUser, DEFAULT_PASSWORD_STRONG } from '@/test-utils';
 
 // Define custom params interface for testing
 interface TestParams extends Params {
@@ -50,19 +49,24 @@ interface TestParams extends Params {
   };
 }
 
-describe('Users Service - Performance & Concurrency', () => {
-  let app: Application;
+describe('Users Service - Performance & Concurrency (Modernized)', () => {
+  let builder: TestServiceBuilder;
   let userService: any;
-  let testUsers: Record<string, string>[] = [];
+  let testUsers: any[] = [];
 
   before(async () => {
-    await setupTestEnvironment();
-    app = getApp();
+    // Initialize modern test utilities with unified setup
+    builder = await new TestServiceBuilder()
+      .withPerformanceMonitoring()
+      .withServiceDiscovery(() => getApp())
+      .build();
 
+    // Get services from the app
+    const app = getApp();
     userService = app.service('users');
 
-    // Create shared test users for all tests
-    const regularUser = await createTestUser(
+    // Create shared test users for all tests using builder
+    const regularUser = await builder.createTestUser(
       userService,
       `regular-perf-${Date.now()}@example.com`,
       DEFAULT_PASSWORD_STRONG,
@@ -71,7 +75,7 @@ describe('Users Service - Performance & Concurrency', () => {
       },
     );
 
-    const adminUser = await createTestUser(
+    const adminUser = await builder.createTestUser(
       userService,
       `admin-perf-${Date.now()}@example.com`,
       DEFAULT_PASSWORD_STRONG,
@@ -84,12 +88,7 @@ describe('Users Service - Performance & Concurrency', () => {
   });
 
   after(async () => {
-    const services = {
-      users: userService,
-      sessions: null,
-      participants: null,
-    };
-    await teardownTestEnvironment(services);
+    await builder.cleanup();
   });
 
   describe('Concurrent Operation Handling', () => {

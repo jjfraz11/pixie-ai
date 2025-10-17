@@ -36,8 +36,7 @@ import { Application, Params } from '@feathersjs/feathers';
 import assert from 'assert';
 
 import { getApp } from '@/app';
-import { setupTestEnvironment, teardownTestEnvironment, createTestUser, TestObject, testContext } from '@/test-utils';
-import { DEFAULT_PASSWORD_STRONG } from '@/test-utils/constants';
+import { TestServiceBuilder, createTestUser, DEFAULT_PASSWORD_STRONG } from '@/test-utils';
 
 // Define custom params interface for testing
 interface TestParams extends Params {
@@ -47,19 +46,24 @@ interface TestParams extends Params {
   };
 }
 
-describe('Users Service - Authentication & Authorization', () => {
-  let app: Application;
+describe('Users Service - Authentication & Authorization (Modernized)', () => {
+  let builder: TestServiceBuilder;
   let userService: any;
-  let testUsers: Record<string, string>[] = [];
+  let testUsers: any[] = [];
 
   before(async () => {
-    const setup = await setupTestEnvironment();
-    app = getApp();
+    // Initialize modern test utilities with unified setup
+    builder = await new TestServiceBuilder()
+      .withPerformanceMonitoring()
+      .withServiceDiscovery(() => getApp())
+      .build();
 
+    // Get services from the app
+    const app = getApp();
     userService = app.service('users');
 
-    // Create shared test users for all tests
-    const regularUser = await createTestUser(
+    // Create shared test users for all tests using builder
+    const regularUser = await builder.createTestUser(
       userService,
       `regular-auth-${Date.now()}@example.com`,
       DEFAULT_PASSWORD_STRONG,
@@ -68,7 +72,7 @@ describe('Users Service - Authentication & Authorization', () => {
       },
     );
 
-    const adminUser = await createTestUser(
+    const adminUser = await builder.createTestUser(
       userService,
       `admin-auth-${Date.now()}@example.com`,
       DEFAULT_PASSWORD_STRONG,
@@ -81,12 +85,7 @@ describe('Users Service - Authentication & Authorization', () => {
   });
 
   after(async () => {
-    const services = {
-      users: userService,
-      sessions: null,
-      participants: null,
-    };
-    await teardownTestEnvironment(services);
+    await builder.cleanup();
   });
 
   describe('Authorization - Role-based Access Control', () => {

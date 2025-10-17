@@ -1,66 +1,38 @@
 import assert from 'assert';
-import { Application, Params } from '@feathersjs/feathers';
-import { getApp } from '@/app';
-import {
-  setupTestEnvironment,
-  teardownTestEnvironment,
-  setupSecurityTestEnvironment,
-  createTestUser,
-  DEFAULT_PASSWORD_STRONG,
-} from '@/test-utils';
-
-// Define custom params interface for testing
-interface TestParams extends Params {
-  user?: {
-    id: string;
-    roles: string[];
-  };
-}
+import { AuthenticationTestBase } from '@/test-utils/base/authentication-test-base';
 
 describe('Authentication and Authorization Security Tests', () => {
-  let app: Application;
-  let port: number;
-  let userService: any;
+  let testBase: AuthenticationTestBase;
 
   before(async () => {
-    // Use security test environment that enables rate limiting
-    await setupSecurityTestEnvironment();
-
-    // Start the server for security tests
-    app = getApp();
-
-    // Get service instances - server will be started by test framework
-    userService = app.service('users');
+    // Use AuthenticationTestBase for consistent setup with security focus
+    testBase = new AuthenticationTestBase({
+      performanceMonitoring: true,
+      debug: false,
+    });
+    await testBase.setup();
   });
 
   after(async () => {
-    // Clean up environment variables
-    delete process.env.ENABLE_RATE_LIMITING;
-
-    const services = {
-      users: userService,
-      sessions: null,
-      participants: null,
-    };
-
-    await teardownTestEnvironment(services);
+    // Use AuthenticationTestBase for consistent cleanup
+    await testBase.teardown();
   });
 
   it('should prevent unauthorized access to admin-only endpoints', async () => {
-    // Create a regular user for testing
-    const regularUser = await createTestUser(userService, 'regular-security@example.com', DEFAULT_PASSWORD_STRONG, {
+    // Create a regular user for testing using AuthenticationTestBase
+    const regularUser = await testBase.createTestUser('regular-security@example.com', undefined, {
       roles: ['USER'],
     });
 
     // Attempt to access an admin-only endpoint as a regular user
     // (Assuming there's an admin-only endpoint like /users for listing all users)
     try {
-      await app.service('users').find({
+      await testBase.getService('users').find({
         user: {
-          id: regularUser.id,
+          id: regularUser.user.id,
           roles: regularUser.roles,
         },
-      } as TestParams);
+      });
       throw new Error('Expected Forbidden error for regular user accessing admin endpoint');
     } catch (error: any) {
       assert.strictEqual(error.code, 403);
@@ -69,8 +41,8 @@ describe('Authentication and Authorization Security Tests', () => {
   });
 
   it('should allow admin user to access admin-only endpoints', async () => {
-    // Create an admin user for testing
-    const adminUser = await createTestUser(userService, 'admin-security@example.com', DEFAULT_PASSWORD_STRONG, {
+    // Create an admin user for testing using AuthenticationTestBase
+    const adminUser = await testBase.createTestUser('admin-security@example.com', undefined, {
       roles: ['ADMIN'],
     });
 
@@ -88,28 +60,17 @@ describe('Authentication and Authorization Security Tests', () => {
   it('should prevent brute-force login attempts', async () => {
     const testEmail = `bruteforce-${Date.now()}@example.com`;
 
-    // Create user with authorization check skipped during authentication
-    await userService.find({
-      query: { email: testEmail },
-      _skipAuth: true, // Skip authorization during user lookup
+    // Create user using AuthenticationTestBase
+    await testBase.createTestUser(testEmail, 'BruteForcePass123!', {
+      roles: ['USER'],
     });
 
-    // Create user if not found
-    try {
-      await userService.create({
-        email: testEmail,
-        password: 'BruteForcePass123!',
-        roles: ['USER'],
-      });
-    } catch (error) {
-      // User might already exist, continue with test
-    }
-
-    // Attempt multiple failed logins
+    // Attempt multiple failed logins using AuthenticationTestBase helper
     for (let i = 0; i < 6; i++) {
       // 5 attempts allowed, 6th should trigger rate limit
       try {
-        await app.service('authentication').create({
+        // Use direct service call instead of protected authHelper
+        await testBase.getService('authentication').create({
           strategy: 'local',
           email: testEmail,
           password: 'wrongpassword',

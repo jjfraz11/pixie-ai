@@ -39,15 +39,7 @@ import { Application, Params } from '@feathersjs/feathers';
 import assert from 'assert';
 
 import { getApp } from '@/app';
-import {
-  setupTestEnvironment,
-  teardownTestEnvironment,
-  createTestUser,
-  TestObject,
-  testContext,
-  ErrorContext,
-} from '@/test-utils';
-import { handlePrismaError } from '../../utils';
+import { TestServiceBuilder, createTestUser } from '@/test-utils';
 import { DEFAULT_PASSWORD_STRONG } from '@/test-utils/constants';
 
 // Define custom params interface for testing
@@ -58,36 +50,46 @@ interface TestParams extends Params {
   };
 }
 
-describe('Users Service - Validation Tests', () => {
-  let app: Application;
+describe('Users Service - Validation Tests (Modernized)', () => {
+  let builder: TestServiceBuilder;
   let userService: any;
-  let testUsers: Record<string, string>[] = [];
+  let testUsers: any[] = [];
 
   before(async () => {
-    const setup = await setupTestEnvironment();
-    app = getApp();
+    // Initialize modern test utilities with unified setup
+    builder = await new TestServiceBuilder()
+      .withPerformanceMonitoring()
+      .withServiceDiscovery(() => getApp())
+      .build();
 
+    // Get services from the app
+    const app = getApp();
     userService = app.service('users');
 
-    // Create shared test users for all tests
-    const regularUser = await createTestUser(userService, `regular-validation-${Date.now()}@example.com`, DEFAULT_PASSWORD_STRONG, {
-      roles: ['USER'],
-    });
+    // Create shared test users for all tests using builder
+    const regularUser = await builder.createTestUser(
+      userService,
+      `regular-validation-${Date.now()}@example.com`,
+      DEFAULT_PASSWORD_STRONG,
+      {
+        roles: ['USER'],
+      },
+    );
 
-    const adminUser = await createTestUser(userService, `admin-validation-${Date.now()}@example.com`, DEFAULT_PASSWORD_STRONG, {
-      roles: ['ADMIN'],
-    });
+    const adminUser = await builder.createTestUser(
+      userService,
+      `admin-validation-${Date.now()}@example.com`,
+      DEFAULT_PASSWORD_STRONG,
+      {
+        roles: ['ADMIN'],
+      },
+    );
 
     testUsers = [regularUser, adminUser];
   });
 
   after(async () => {
-    const services = {
-      users: userService,
-      sessions: null,
-      participants: null,
-    };
-    await teardownTestEnvironment(services);
+    await builder.cleanup();
   });
 
   describe('Schema Validation', () => {
@@ -103,7 +105,7 @@ describe('Users Service - Validation Tests', () => {
           const errorMessage = error.message.toLowerCase();
           assert.ok(
             errorMessage.includes('email') || errorMessage.includes('format') || errorMessage.includes('invalid'),
-            `Error should mention email validation for: ${email}. Got: ${error.message}`
+            `Error should mention email validation for: ${email}. Got: ${error.message}`,
           );
         }
       }

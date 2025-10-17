@@ -18,35 +18,23 @@
  */
 
 // External Libraries
-import { Application } from '@feathersjs/feathers';
 import assert from 'assert';
-
-// Internal Modules
-import { getApp } from '@/app';
-
-// Test Utilities
-import { createTestUser, DEFAULT_PASSWORD_STRONG, TestServiceBuilder } from '@/test-utils';
+import { AuthenticationTestBase } from '@/test-utils/base/authentication-test-base';
 
 describe('Authentication Integration Tests', () => {
-  let app: Application;
-  let builder: TestServiceBuilder;
-  let usersService: any;
-  let authService: any;
+  let testBase: AuthenticationTestBase;
 
   before(async () => {
-    // Initialize test environment
-    builder = await new TestServiceBuilder()
-      .withPerformanceMonitoring()
-      .withServiceDiscovery(() => getApp())
-      .build();
-
-    app = getApp();
-    usersService = app.service('users');
-    authService = app.service('authentication');
+    // Use AuthenticationTestBase for consistent setup
+    testBase = new AuthenticationTestBase({
+      performanceMonitoring: true,
+    });
+    await testBase.setup();
   });
 
   after(async () => {
-    await builder.cleanup();
+    // Use AuthenticationTestBase for consistent cleanup
+    await testBase.teardown();
   });
 
   describe('Authentication Service Integration', () => {
@@ -54,20 +42,17 @@ describe('Authentication Integration Tests', () => {
     let serviceUser: any;
 
     before(async () => {
-      authConfig = app.get('authentication');
+      authConfig = testBase.getApp().get('authentication');
 
-      serviceUser = await builder.createTestUser(
-        usersService,
-        `auth-service-user-${Date.now()}@example.com`,
-        DEFAULT_PASSWORD_STRONG,
-        {
-          roles: ['USER'],
-          isActive: true,
-        },
-      );
+      serviceUser = await testBase.createTestUser(`auth-service-user-${Date.now()}@example.com`, undefined, {
+        roles: ['USER'],
+        isActive: true,
+      });
     });
 
     it('should integrate with authentication service', async () => {
+      const authService = testBase.getService('authentication');
+
       // Test that user can be found by authentication service
       assert.ok(authService, 'Authentication service should be available');
       assert.ok(typeof authService.create === 'function', 'Should have authentication methods');
@@ -81,7 +66,8 @@ describe('Authentication Integration Tests', () => {
       }
 
       // Verify user exists and is active for authentication
-      const retrievedUser = await usersService.get(serviceUser.id);
+      const usersService = testBase.getService('users');
+      const retrievedUser = await usersService.get(serviceUser.user.id);
       assert.strictEqual(retrievedUser.isActive, true);
       // Verify user is properly configured for authentication
       assert.ok(retrievedUser.email, 'User should have email for authentication');
@@ -90,6 +76,10 @@ describe('Authentication Integration Tests', () => {
     });
 
     it('should validate users service and authentication service integration', async () => {
+      const usersService = testBase.getService('users');
+      const authService = testBase.getService('authentication');
+      const app = testBase.getApp();
+
       // Test that both services are available and can work together
       assert.ok(usersService, 'Users service should be available');
       assert.ok(authService, 'Authentication service should be available');
@@ -100,16 +90,23 @@ describe('Authentication Integration Tests', () => {
     });
 
     it('should validate authentication configuration for users', async () => {
+      const app = testBase.getApp();
+
       // Test authentication configuration is properly set up
       const authConfig = app.get('authentication');
       assert.ok(authConfig, 'Authentication should be configured');
     });
 
     it('should support authentication flow integration', async () => {
-      // Test that user data supports authentication flows
-      assert.ok(serviceUser.id, 'User should have ID for authentication');
+      // Test that user data supports authentication flows using test base
+      assert.ok(serviceUser.user.id, 'User should have ID for authentication');
       assert.ok(serviceUser.email, 'User should have email for authentication');
       assert.ok(serviceUser.password, 'User should have password hash for authentication');
+
+      // Test integration with AuthenticationTestBase methods
+      assert.ok(testBase, 'Test base should be available');
+      assert.ok(typeof testBase.loginUser === 'function', 'Should have login method through test base');
+      assert.ok(typeof testBase.createTestUser === 'function', 'Should have user creation through test base');
     });
   });
 });
