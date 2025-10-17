@@ -266,4 +266,7 @@ app.use((error: any, req: any, res: any, next: any) => {
 // Add logger to app context for services to use
 app.set('logger', logger);
 
+// Set Prisma client on app for services to use
+app.set('prisma', prisma);
+
 export default app;
