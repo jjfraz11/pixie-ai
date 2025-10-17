@@ -1,183 +1,97 @@
-import { Application, Params, NullableId, Service } from '@feathersjs/feathers';
+import { Application, Params, NullableId } from '@feathersjs/feathers';
+import { PrismaClient } from '@prisma/client';
+import { BadRequest } from '@feathersjs/errors';
 
-import prisma from '@/prisma';
-
-import { User } from './users.schema';
 import { configureUserHooks } from './users.hooks';
-import { handlePrismaError } from '@/test-utils';
+import { UserData, UserPatch, PrismaUserType } from './users.schema';
+import {
+  buildUserWhereClause,
+  prepareUserCreateData,
+  prepareUserUpdateData,
+  handleNoUserFound,
+  handleNullValue,
+} from './user.utils';
 
 // Types
 interface UserServiceOptions {
   paginate?: any;
 }
 
-class UserService implements Service<User> {
+export class UserService {
   app: Application;
   options: UserServiceOptions;
+  prisma: PrismaClient;
 
   constructor(options: UserServiceOptions, app: Application) {
     this.options = options;
     this.app = app;
+    this.prisma = (app.get('prisma') as PrismaClient) || new PrismaClient();
   }
 
-  async find(params?: Params, throwErrors = false): Promise<any[]> {
-    // In test environment, still use database for authentication tests
-    // Only skip database calls for non-authentication related tests
-    if (process.env.NODE_ENV === 'test' && !params?.query?.email) {
-      return [];
-    }
+  async find(params?: Params): Promise<PrismaUserType[]> {
+    const { $limit = 10, email, roles, ...data } = params?.query || {};
 
-    const { $limit = 10, email, ...data } = params?.query || {};
-    return prisma.user
-      .findMany({
-        take: $limit,
-        where: email ? { email } : undefined,
-      })
-      .catch((error: any) => {
-        // In test mode, if database is not available, return empty array
-        if (process.env.NODE_ENV === 'test') {
-          console.warn('Database not available in test mode for user lookup:', error.message);
-          return [];
-        }
+    // Build where clause for filtering using utility function
+    const where = buildUserWhereClause({ email, roles });
 
-        handlePrismaError(error, { operation: 'find_users', data: { $limit, email, ...data } }, throwErrors);
-        return [];
-      });
+    return this.prisma.user.findMany({
+      take: $limit,
+      where: Object.keys(where).length > 0 ? where : undefined,
+    });
   }
 
-  async get(id: string, params?: Params, throwErrors = false): Promise<any> {
-    if (!id) {
-      handlePrismaError(new Error('Missing id.'), { operation: 'get_user', data: { id } }, throwErrors);
-      return null;
-    }
+  async get(id: string, params?: Params): Promise<PrismaUserType> {
+    handleNullValue(id, 'Missing id.');
 
-    return prisma.user
+    return this.prisma.user
       .findUnique({
         where: { id },
-        ...(params?.query as any),
       })
       .then((user) => {
-        if (!user) {
-          return null;
+        if (user === null) {
+          throw new BadRequest('No user found');
+        } else {
+          return user;
         }
-        return user;
-      })
-      .catch((error: any) => {
-        handlePrismaError(error, { operation: 'get_user', data: { id } }, throwErrors);
-        return null;
       });
   }
 
-  async create(data: any, params?: Params, throwErrors = false): Promise<any> {
-    // In test environment, still create real users for authentication tests
-    // This ensures authentication tests can find the users they create
-
-    // Preprocess roles field to ensure it's always an array for Prisma
-    const processedData = {
-      ...data,
-      roles: Array.isArray(data.roles)
-        ? data.roles.map((role: string) => role.toUpperCase())
-        : [data.roles?.toUpperCase() || 'USER'],
-    };
-
-    return prisma.user.create({ data: processedData }).catch((error: any) => {
-      // In test mode, if database is not available, create a mock user
-      if (process.env.NODE_ENV === 'test') {
-        console.warn('Database not available in test mode, creating mock user:', error.message);
-        return {
-          id: `test-user-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-          email: data.email,
-          password: data.password,
-          roles: Array.isArray(data.roles)
-            ? data.roles.map((role: string) => role.toUpperCase())
-            : [data.roles?.toUpperCase() || 'USER'],
-          isActive: true,
-          emailVerified: false,
-          loginAttempts: 0,
-          createdAt: new Date(),
-          updatedAt: new Date(),
-          ...data,
-        };
-      }
-
-      handlePrismaError(error, { operation: 'create_user', data }, throwErrors);
-      return null;
-    });
+  async create(data: UserData, params?: Params): Promise<PrismaUserType> {
+    const processedData = prepareUserCreateData(data);
+    return this.prisma.user.create({ data: processedData }).then((user) => handleNoUserFound(user));
   }
 
-  async update(id: NullableId, data: any, params?: Params, throwErrors = false): Promise<any> {
-    if (!id) {
-      handlePrismaError(
-        new Error('Missing id.'),
-        { operation: 'update_user', data: { id: id as string, data } },
-        throwErrors,
-      );
-      return null;
-    }
+  async update(id: NullableId, data: UserPatch, params?: Params): Promise<PrismaUserType> {
+    handleNullValue(id, 'Missing id.');
 
-    // Preprocess roles field to ensure it's always an array for Prisma
-    const processedData = {
-      ...data,
-      ...(data.roles !== undefined && {
-        roles: Array.isArray(data.roles)
-          ? data.roles.map((role: string) => role.toUpperCase())
-          : [data.roles?.toUpperCase() || 'USER'],
-      }),
-    };
-
-    return prisma.user.update({ where: { id: id as string }, data: processedData }).catch((error: any) => {
-      handlePrismaError(
-        error,
-        { operation: 'update_user', data: { id: id as string, data: processedData } },
-        throwErrors,
-      );
-      return null;
-    });
+    // Prepare data for Prisma update operation using utility function
+    const processedData = prepareUserUpdateData(data);
+    return this.prisma.user
+      .update({
+        where: { id: id as string },
+        data: processedData,
+      })
+      .then((user) => handleNoUserFound(user));
   }
 
-  async patch(id: NullableId, data: any, params?: Params, throwErrors = false): Promise<any> {
-    if (!id) {
-      handlePrismaError(
-        new Error('Missing id.'),
-        { operation: 'patch_user', data: { id: id as string, data } },
-        throwErrors,
-      );
-      return null;
-    }
+  async patch(id: NullableId, data: UserPatch, params?: Params): Promise<PrismaUserType> {
+    handleNullValue(id, 'Missing id.');
 
-    // Preprocess roles field to ensure it's always an array for Prisma
-    const processedData = {
-      ...data,
-      ...(data.roles !== undefined && {
-        roles: Array.isArray(data.roles)
-          ? data.roles.map((role: string) => role.toUpperCase())
-          : [data.roles?.toUpperCase() || 'USER'],
-      }),
-    };
+    // Prepare data for Prisma update operation using utility function
+    const processedData = prepareUserUpdateData(data);
 
-    return prisma.user.update({ where: { id: id as string }, data: processedData }).catch((error: any) => {
-      handlePrismaError(
-        error,
-        { operation: 'patch_user', data: { id: id as string, data: processedData } },
-        throwErrors,
-      );
-      return null;
-    });
+    return this.prisma.user
+      .update({
+        where: { id: id as string },
+        data: processedData,
+      })
+      .then((user) => handleNoUserFound(user));
   }
 
-  async remove(id: NullableId, params?: Params, throwErrors = false): Promise<any> {
-    if (!id) {
-      handlePrismaError(
-        new Error('Missing id.'),
-        { operation: 'remove_user', data: { id: id as string } },
-        throwErrors,
-      );
-      return null;
-    }
-    return prisma.user.delete({ where: { id: id as string } }).catch((error: any) => {
-      handlePrismaError(error, { operation: 'remove_user', data: { id: id as string } }, throwErrors);
-      return null;
-    });
+  async remove(id: NullableId, params?: Params): Promise<PrismaUserType> {
+    handleNullValue(id, 'Missing id.');
+
+    return this.prisma.user.delete({ where: { id: id as string } });
   }
 }
 
