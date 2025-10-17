@@ -1,24 +1,22 @@
-"use client";
+'use client';
 
-import GoLivePanel from "./components/GoLivePanel";
-import UserList from "./components/UserList";
-import LoginForm from "./components/LoginForm";
-import RegisterForm from "./components/RegisterForm";
-import { useAuth } from "./contexts/AuthContext";
+import GoLivePanel from '@/app/components/sessions/GoLivePanel';
+import UserList from '@/app/components/sessions/UserList';
+import LoginForm from '@/app/components/auth/LoginForm';
+import RegisterForm from '@/app/components/auth/RegisterForm';
+import { useAuth } from '@/app/contexts/AuthContext';
 
 export default function Home() {
   const { user, logout, showRegister } = useAuth();
 
   return (
     <div className="min-h-screen bg-gray-100 flex flex-col items-center justify-center p-4">
-      <h1 className="text-4xl font-bold text-gray-800 mb-8">
-        Welcome to Pixie AI
-      </h1>
+      <h1 className="text-4xl font-bold text-gray-800 mb-8">Welcome to Pixie AI</h1>
 
       {!user ? (
         <div className="bg-white p-8 rounded-lg shadow-md w-full max-w-md">
           <h2 className="text-2xl font-semibold text-gray-700 mb-6 text-center">
-            {showRegister ? "Register" : "Login"}
+            {showRegister ? 'Register' : 'Login'}
           </h2>
 
           {showRegister ? <RegisterForm /> : <LoginForm />}
@@ -26,9 +24,7 @@ export default function Home() {
       ) : (
         <div className="w-full max-w-4xl space-y-8">
           <div className="flex justify-between items-center bg-white p-4 rounded-lg shadow-md">
-            <p className="text-lg font-medium text-gray-700">
-              Welcome, {user.email}!
-            </p>
+            <p className="text-lg font-medium text-gray-700">Welcome, {user.email}!</p>
 
             <button
               onClick={logout}

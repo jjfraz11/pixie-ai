@@ -12,6 +12,7 @@ import {
 } from "@livekit/components-react";
 
 import { useAuth } from "@/app/contexts/AuthContext";
+import { useLiveKit } from "@/app/contexts/LiveKitContext";
 
 interface P2PPageProps {
   params: { sessionId: string };
@@ -20,9 +21,8 @@ interface P2PPageProps {
 export default function P2PPage({ params }: P2PPageProps) {
   const { sessionId } = params;
   const { user, token } = useAuth();
+  const { room, connectToRoom, disconnectFromRoom, connectionState, error: livekitError } = useLiveKit();
   const router = useRouter();
-  const [livekitToken, setLivekitToken] = useState<string | null>(null);
-  const [wsUrl, setWsUrl] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [hostDisconnected, setHostDisconnected] = useState(false);
@@ -33,7 +33,7 @@ export default function P2PPage({ params }: P2PPageProps) {
       return;
     }
 
-    const fetchLivekitToken = async () => {
+    const fetchAndConnect = async () => {
       try {
         setIsLoading(true);
         setError(null);
@@ -69,8 +69,7 @@ export default function P2PPage({ params }: P2PPageProps) {
         }
 
         const data = await response.json();
-        setLivekitToken(data.token);
-        setWsUrl(data.wsUrl);
+        await connectToRoom(data.token, data.wsUrl);
       } catch (err) {
         setError(
           err instanceof Error
@@ -83,10 +82,14 @@ export default function P2PPage({ params }: P2PPageProps) {
       }
     };
 
-    fetchLivekitToken();
-  }, [sessionId, user, token, router]);
+    fetchAndConnect();
 
-  if (isLoading) {
+    return () => {
+      disconnectFromRoom();
+    };
+  }, [sessionId, user, token, router, connectToRoom, disconnectFromRoom]);
+
+  if (isLoading || connectionState === "connecting") {
     return (
       <div className="flex items-center justify-center min-h-screen bg-gray-900 text-white">
         <div className="text-lg">Connecting to session...</div>
@@ -94,15 +97,15 @@ export default function P2PPage({ params }: P2PPageProps) {
     );
   }
 
-  if (error) {
+  if (error || livekitError) {
     return (
       <div className="flex items-center justify-center min-h-screen bg-red-900 text-white">
-        <div className="text-lg">Error: {error}</div>
+        <div className="text-lg">Error: {error || livekitError}</div>
       </div>
     );
   }
 
-  if (!livekitToken || !wsUrl) {
+  if (!room) {
     return (
       <div className="flex items-center justify-center min-h-screen bg-gray-900 text-white">
         <div className="text-lg">
@@ -115,11 +118,9 @@ export default function P2PPage({ params }: P2PPageProps) {
   return (
     <div className="min-h-screen bg-gray-900 text-white flex flex-col">
       <LiveKitRoom
+        room={room}
         video={true}
         audio={true}
-        token={livekitToken}
-        serverUrl={wsUrl}
-        connect={true}
         data-lk-theme="default"
         onDisconnected={() => {
           console.log("Disconnected from LiveKit room");

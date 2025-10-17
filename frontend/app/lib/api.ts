@@ -93,7 +93,7 @@ export async function registerAPI(data: RegisterRequest): Promise<UserResponse> 
  * Get users API call (for UserList component)
  */
 export async function getUsersAPI(token: string): Promise<UserResponse[]> {
-  const response = await fetch("/api/users", {
+  const response = await fetch('/api/users', {
     headers: {
       Authorization: `Bearer ${token}`,
     },
@@ -101,7 +101,7 @@ export async function getUsersAPI(token: string): Promise<UserResponse[]> {
 
   if (!response.ok) {
     const errorData = await response.json();
-    throw new Error(errorData.message || "Failed to fetch users");
+    throw new Error(errorData.message || 'Failed to fetch users');
   }
 
   return response.json();
@@ -110,20 +110,18 @@ export async function getUsersAPI(token: string): Promise<UserResponse[]> {
 /**
  * Password reset request API call
  */
-export async function requestPasswordResetAPI(
-  data: PasswordResetRequest
-): Promise<PasswordResetResponse> {
-  const response = await fetch("/api/authentication/password-reset", {
-    method: "POST",
+export async function requestPasswordResetAPI(data: PasswordResetRequest): Promise<PasswordResetResponse> {
+  const response = await fetch('/api/authentication/password-reset', {
+    method: 'POST',
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
     body: JSON.stringify(data),
   });
 
   if (!response.ok) {
     const errorData = await response.json();
-    throw new Error(errorData.message || "Failed to request password reset");
+    throw new Error(errorData.message || 'Failed to request password reset');
   }
 
   return response.json();
@@ -132,20 +130,18 @@ export async function requestPasswordResetAPI(
 /**
  * Change password API call
  */
-export async function changePasswordAPI(
-  data: PasswordResetChange
-): Promise<PasswordResetResponse> {
-  const response = await fetch("/api/authentication/password-reset", {
-    method: "POST",
+export async function changePasswordAPI(data: PasswordResetChange): Promise<PasswordResetResponse> {
+  const response = await fetch('/api/authentication/password-reset', {
+    method: 'POST',
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
     body: JSON.stringify(data),
   });
 
   if (!response.ok) {
     const errorData = await response.json();
-    throw new Error(errorData.message || "Failed to change password");
+    throw new Error(errorData.message || 'Failed to change password');
   }
 
   return response.json();
