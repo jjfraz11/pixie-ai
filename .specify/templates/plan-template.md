@@ -29,9 +29,34 @@
 
 ## Constitution Check
 
-*GATE: Must pass before Phase 0 research. Re-check after Phase 1 design.*
+_GATE: Must pass before Phase 0 research. Re-check after Phase 1 design._
 
-[Gates determined based on constitution file]
+**Core Requirements** (must comply with all):
+
+- [x] Functional Programming Standards (Section 2): Either monad pattern, immutable data transformations
+- [x] Repository Pattern Requirements (Section 3): Functional repository interfaces with Either error handling
+- [x] SOLID Principles (Section 1.1): Single responsibility, dependency inversion, proper abstraction
+- [x] Error Handling (Section 8): Either-based error handling throughout services
+- [x] TypeScript Standards (Section 6.2): Strict mode, comprehensive type safety
+
+**Frontend Requirements** (for web applications):
+
+- [x] React Hooks Best Practices (Section 11.1): useCallback for handlers, useMemo for derived data, useEffect for side effects
+- [x] Component Architecture (Section 11.2): Hierarchical structure, shared component modules, layout components
+- [x] State Management (Section 11.3): Provider pattern, centralized logic, custom hooks for clean APIs
+- [x] Performance Optimization (Section 11.4): React.memo, stable references, props structure optimization
+
+**Backend Requirements** (for API services):
+
+- [x] Business Logic Architecture (Section 5): Functional service layer with composition
+- [x] Configuration Management (Section 4): Functional configuration with validation
+- [x] Authorization Patterns (Section 9): Functional authorization with composition
+- [x] Real-Time Communication (Section 10): LiveKit integration with proper patterns
+
+**Testing Requirements**:
+
+- [x] Testing Standards (Section 7): Property-based testing, functional test structure
+- [x] Development Standards (Section 6): Code organization, TypeScript functional standards
 
 ## Project Structure
 
@@ -48,6 +73,7 @@ specs/[###-feature]/
 ```
 
 ### Source Code (repository root)
+
 <!--
   ACTION REQUIRED: Replace the placeholder tree below with the concrete layout
   for this feature. Delete unused options and expand the chosen structure with
@@ -96,9 +122,9 @@ directories captured above]
 
 ## Complexity Tracking
 
-*Fill ONLY if Constitution Check has violations that must be justified*
+_Fill ONLY if Constitution Check has violations that must be justified_
 
-| Violation | Why Needed | Simpler Alternative Rejected Because |
-|-----------|------------|-------------------------------------|
-| [e.g., 4th project] | [current need] | [why 3 projects insufficient] |
-| [e.g., Repository pattern] | [specific problem] | [why direct DB access insufficient] |
+| Violation                  | Why Needed         | Simpler Alternative Rejected Because |
+| -------------------------- | ------------------ | ------------------------------------ |
+| [e.g., 4th project]        | [current need]     | [why 3 projects insufficient]        |
+| [e.g., Repository pattern] | [specific problem] | [why direct DB access insufficient]  |

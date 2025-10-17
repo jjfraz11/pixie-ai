@@ -1,19 +1,21 @@
-"use client";
+'use client';
 
-import { User } from "../types/auth";
+import { User } from '@/app/types/auth';
 
 // API helper functions for authentication and user management
 
 export interface LoginRequest {
-  strategy: "local";
+  strategy: 'local';
   email: string;
   password: string;
+  captcha?: string;
 }
 
 export interface RegisterRequest {
   email: string;
   password: string;
   roles: string[];
+  captcha: string;
 }
 
 export interface AuthResponse {
@@ -30,12 +32,12 @@ export interface UserResponse {
 }
 
 export interface PasswordResetRequest {
-  action: "request";
+  action: 'request';
   email: string;
 }
 
 export interface PasswordResetChange {
-  action: "change";
+  action: 'change';
   token: string;
   newPassword: string;
 }
@@ -49,17 +51,19 @@ export interface PasswordResetResponse {
  * Login API call
  */
 export async function loginAPI(data: LoginRequest): Promise<AuthResponse> {
-  const response = await fetch("/api/authentication", {
-    method: "POST",
+  const response = await fetch('/api/authentication', {
+    method: 'POST',
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
     body: JSON.stringify(data),
   });
 
+  console.info({ loginApiResponse: response });
+
   if (!response.ok) {
     const errorData = await response.json();
-    throw new Error(errorData.message || "Login failed");
+    throw new Error(errorData.message || 'Login failed');
   }
 
   return response.json();
@@ -68,20 +72,18 @@ export async function loginAPI(data: LoginRequest): Promise<AuthResponse> {
 /**
  * Register API call
  */
-export async function registerAPI(
-  data: RegisterRequest
-): Promise<UserResponse> {
-  const response = await fetch("/api/users", {
-    method: "POST",
+export async function registerAPI(data: RegisterRequest): Promise<UserResponse> {
+  const response = await fetch('/api/users', {
+    method: 'POST',
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
     },
     body: JSON.stringify(data),
   });
 
   if (!response.ok) {
     const errorData = await response.json();
-    throw new Error(errorData.message || "Registration failed");
+    throw new Error(errorData.message || 'Registration failed');
   }
 
   return response.json();

@@ -30,6 +30,7 @@ function StreamViewer({ sessionId, title }: ViewerPageProps) {
             <div>
               <h1 className="text-xl font-bold">{title || "Live Stream"}</h1>
               <p className="text-sm text-gray-300">Live</p>
+              <p className="text-sm text-gray-300">0 viewers</p> {/* Placeholder for actual viewer count */}
             </div>
             <button
               onClick={handleLeaveStream}

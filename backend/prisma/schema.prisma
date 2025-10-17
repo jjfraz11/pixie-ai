@@ -22,6 +22,8 @@ model User {
   refreshTokens        RefreshToken[]
   hostedSessions       Session[]
   participatedSessions Participant[]
+  resetToken           String?
+  resetTokenExpires    DateTime?
 }
 
 model Session {
@@ -35,7 +37,7 @@ model Session {
   maxParticipants     Int           @default(10)
   currentParticipants Int           @default(0)
   hostId              String
-  host                User          @relation(fields: [hostId], references: [id])
+  host                User          @relation(fields: [hostId], references: [id], onDelete: Cascade)
   participants        Participant[]
   settings            Json?
   liveKitRoomId       String?       @unique
@@ -52,7 +54,7 @@ model Participant {
   sessionId            String
   session              Session            @relation(fields: [sessionId], references: [id], onDelete: Cascade)
   userId               String?
-  user                 User?              @relation(fields: [userId], references: [id])
+  user                 User?              @relation(fields: [userId], references: [id], onDelete: Cascade)
   participantIdentity  String
   displayName          String             @db.VarChar(50)
   role                 ParticipantRole
@@ -76,7 +78,7 @@ model Participant {
 model RefreshToken {
   id           String    @id @default(cuid())
   userId       String
-  user         User      @relation(fields: [userId], references: [id])
+  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   tokenHash    String    @unique
   deviceInfo   Json?
   ipAddress    String?

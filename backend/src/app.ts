@@ -16,6 +16,10 @@ import winston from 'winston'; // Import winston
 // In your app.js or equivalent
 const app = express(feathers());
 
+export function getApp() {
+  return app;
+}
+
 // Create a Winston logger instance
 const logger = winston.createLogger({
   level: 'info',
@@ -92,7 +96,7 @@ const apiLimiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
   skip: (req: any) => {
-    return process.env.NODE_ENV === 'development';
+    return process.env.NODE_ENV === 'development' && process.env.ENABLE_RATE_LIMITING !== 'true';
   },
 });
 
@@ -127,19 +131,30 @@ app.set('authentication', {
   },
 });
 
+app.configure(configureUsersService);
+app.configure(configureSessionsService);
+
 // Configure authentication service (includes password reset functionality)
 import { sanitizeData } from '@/hooks/sanitize';
 
 // Configure authentication service (includes password reset functionality)
 configureAuthentication(app);
-
 app.configure(configureEmailService);
 
-app.configure(configureSessionsService);
+import configureLiveKitTokenService from './services/livekit-token/livekit-token.service';
 
+// ... existing app setup ...
+
+// Set livekit configuration
+app.set('livekit', {
+  apiKey: process.env.LIVEKIT_API_KEY,
+  apiSecret: process.env.LIVEKIT_API_SECRET,
+  wsUrl: process.env.LIVEKIT_WS_URL,
+});
+
+// ... existing service configurations ...
+app.configure(configureLiveKitTokenService);
 app.configure(configureParticipantService);
-
-app.configure(configureUsersService);
 
 // Add global hooks
 app.hooks({
@@ -221,14 +236,31 @@ app.use('/health', async (req: any, res: any) => {
   res.status(healthStatus.status === 'healthy' ? 200 : 503).json(healthStatus);
 });
 
-// Configure error handler after services are set up
+// Custom error handler that respects status codes set on error objects
 app.use((error: any, req: any, res: any, next: any) => {
+  // Track error metrics with the status code from the error or default to 500
+  const statusCode = (error as any).code || error.statusCode || error.status || 500;
+
   errorRateCounter.add(1, {
     method: req.method,
     path: req.path,
-    statusCode: error.code || 500,
+    statusCode,
   });
-  errorHandler()(error, req, res, next);
+
+  // If headers have already been sent, delegate to default handler
+  if (res.headersSent) {
+    return errorHandler()(error, req, res, next);
+  }
+
+  // Send error response with the correct status code
+  res.status(statusCode).json({
+    errors: [
+      {
+        message: error.message || 'Internal server error',
+        ...(process.env.NODE_ENV === 'development' && { stack: error.stack }),
+      },
+    ],
+  });
 });
 
 // Add logger to app context for services to use

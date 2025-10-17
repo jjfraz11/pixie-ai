@@ -1,35 +1,26 @@
-"use client";
+'use client';
 
-import {
-  createContext,
-  useState,
-  useContext,
-  ReactNode,
-  useCallback,
-  useEffect,
-} from "react";
-import { User } from "../types/auth";
-import { loginAPI, registerAPI } from "../lib/api";
+import { createContext, useState, useContext, ReactNode, useCallback, useEffect } from 'react';
+import { isEmpty } from 'lodash';
+
+import { User } from '@/app/types/auth';
+import { loginAPI, registerAPI } from '@/app/lib/api';
 
 // Define the shape of the context data
 interface AuthContextType {
   user: User | null;
-  token: string | null;
+  token: string | undefined;
   login: (userData: User, token: string) => void;
   logout: () => void;
   // Login form state and handlers
-  email: string;
-  setEmail: (email: string) => void;
-  password: string;
-  setPassword: (password: string) => void;
+  loginForm: { email: string; password: string; captcha: string };
+  setLoginForm: (form: { email: string; password: string; captcha: string }) => void;
   loginError: string | null;
   setLoginError: (error: string | null) => void;
   handleLogin: (e: React.FormEvent) => Promise<void>;
   // Registration form state and handlers
-  registerEmail: string;
-  setRegisterEmail: (email: string) => void;
-  registerPassword: string;
-  setRegisterPassword: (password: string) => void;
+  registerForm: { email: string; password: string; confirmPassword: string; captcha: string };
+  setRegisterForm: (form: { email: string; password: string; confirmPassword: string; captcha: string }) => void;
   registerError: string | null;
   setRegisterError: (error: string | null) => void;
   showRegister: boolean;
@@ -46,26 +37,26 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 // Create the provider component
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
-  const [token, setToken] = useState<string | null>(null);
+  const [token, setToken] = useState<string>();
 
   useEffect(() => {
-    const storedToken = localStorage.getItem("authToken");
-    const storedUser = localStorage.getItem("user");
-
-    if (storedToken && storedUser) {
-      setToken(storedToken);
-      setUser(JSON.parse(storedUser));
+    if (localStorage) {
+      const storedToken = localStorage.getItem('authToken');
+      const storedUser = localStorage.getItem('user');
+      if (storedToken && storedUser !== null) {
+        setToken(storedToken);
+        // const userObject = JSON.parse(storedUser || '{}');
+        // if (!isEmpty(userObject)) setUser(userObject);
+      }
     }
-  }, []); // Run only once on mount
+  }, []);
 
   // Login form state
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
+  const [loginForm, setLoginForm] = useState({ email: '', password: '', captcha: '' });
   const [loginError, setLoginError] = useState<string | null>(null);
 
   // Registration form state
-  const [registerEmail, setRegisterEmail] = useState("");
-  const [registerPassword, setRegisterPassword] = useState("");
+  const [registerForm, setRegisterForm] = useState({ email: '', password: '', confirmPassword: '', captcha: '' });
   const [registerError, setRegisterError] = useState<string | null>(null);
   const [showRegister, setShowRegister] = useState(false);
   // User selection state
@@ -74,15 +65,15 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const login = useCallback((userData: User, authToken: string) => {
     setUser(userData);
     setToken(authToken);
-    localStorage.setItem("authToken", authToken); // Store token
-    localStorage.setItem("user", JSON.stringify(userData)); // Store user data
+    localStorage.setItem('authToken', authToken); // Store token
+    localStorage.setItem('user', JSON.stringify(userData)); // Store user data
   }, []);
 
   const logout = useCallback(() => {
     setUser(null);
-    setToken(null);
-    localStorage.removeItem("authToken"); // Remove token
-    localStorage.removeItem("user"); // Remove user data
+    setToken(undefined);
+    localStorage.removeItem('authToken'); // Remove token
+    localStorage.removeItem('user'); // Remove user data
   }, []);
 
   const handleLogin = useCallback(
@@ -91,17 +82,18 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       setLoginError(null);
 
       try {
-        const data = await loginAPI({ strategy: "local", email, password });
+        const data = await loginAPI({
+          strategy: 'local',
+          email: loginForm.email,
+          password: loginForm.password,
+          captcha: loginForm.captcha,
+        });
         login(data.user, data.accessToken);
       } catch (err) {
-        setLoginError(
-          err instanceof Error
-            ? err.message
-            : "An unknown error occurred during login"
-        );
+        setLoginError(err instanceof Error ? err.message : 'An unknown error occurred during login');
       }
     },
-    [email, password, login]
+    [loginForm, login],
   );
 
   const handleRegister = useCallback(
@@ -109,32 +101,38 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       e.preventDefault();
       setRegisterError(null);
 
+      // Validate password confirmation
+      if (registerForm.password !== registerForm.confirmPassword) {
+        setRegisterError('Passwords do not match');
+        return;
+      }
+
       try {
-        await registerAPI({
-          email: registerEmail,
-          password: registerPassword,
-          roles: ["user"],
+        const registerResponse = await registerAPI({
+          email: registerForm.email,
+          password: registerForm.password,
+          captcha: registerForm.captcha,
+          roles: ['USER'],
         });
+
+        console.info({ registerResponse });
 
         // After successful registration, automatically log in the user
         // Use the loginAPI directly to avoid circular dependency
         const { user, accessToken } = await loginAPI({
-          strategy: "local",
-          email: registerEmail,
-          password: registerPassword,
+          strategy: 'local',
+          email: registerForm.email,
+          password: registerForm.password,
+          captcha: registerForm.captcha,
         });
 
         login(user, accessToken);
         setShowRegister(false);
       } catch (err) {
-        setRegisterError(
-          err instanceof Error
-            ? err.message
-            : "An unknown error occurred during registration"
-        );
+        setRegisterError(err instanceof Error ? err.message : 'An unknown error occurred during registration');
       }
     },
-    [registerEmail, registerPassword, login]
+    [registerForm, login],
   );
 
   return (
@@ -144,17 +142,13 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         token,
         login,
         logout,
-        email,
-        setEmail,
-        password,
-        setPassword,
+        loginForm,
+        setLoginForm: (form) => setLoginForm((prev) => ({ ...prev, ...form })),
         loginError,
         setLoginError,
         handleLogin,
-        registerEmail,
-        setRegisterEmail,
-        registerPassword,
-        setRegisterPassword,
+        registerForm,
+        setRegisterForm: (form) => setRegisterForm((prev) => ({ ...prev, ...form })),
         registerError,
         setRegisterError,
         showRegister,
@@ -173,7 +167,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 export const useAuth = () => {
   const context = useContext(AuthContext);
   if (context === undefined) {
-    throw new Error("useAuth must be used within an AuthProvider");
+    throw new Error('useAuth must be used within an AuthProvider');
   }
   return context;
 };

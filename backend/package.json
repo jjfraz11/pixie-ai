@@ -4,7 +4,7 @@
   "main": "lib/index.js",
   "type": "module",
   "scripts": {
-    "test": "mocha '**/__tests__/*.test.ts' --require tsx --timeout 10000 --exit",
+    "test": "mocha 'src/**/__tests__/*.test.ts' --require tsx --timeout 10000 --exit",
     "test:authentication": "mocha 'src/services/authentication/__tests__/*.test.ts' --require tsx --timeout 10000 --exit",
     "test:sessions": "mocha 'src/services/sessions/__tests__/*.test.ts' --require tsx --timeout 10000 --exit",
     "test:users": "mocha 'src/services/users/__tests__/*.test.ts' --require tsx --timeout 10000 --exit",
@@ -38,6 +38,7 @@
     "helmet": "^8.1.0",
     "immer": "^10.1.3",
     "jsdom": "^27.0.0",
+    "livekit-server-sdk": "^2.14.0",
     "prisma": "^6.17.1",
     "ramda": "^0.32.0",
     "uuid": "^13.0.0",

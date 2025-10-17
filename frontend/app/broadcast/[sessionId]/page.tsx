@@ -1,7 +1,7 @@
-"use client";
+'use client';
 
-import { useCallback, useEffect, useState } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useCallback, useEffect, useState } from 'react';
+import { useParams, useRouter } from 'next/navigation';
 import {
   LiveKitRoom,
   VideoConference,
@@ -10,10 +10,11 @@ import {
   useParticipants,
   ParticipantTile,
   useLocalParticipant,
-} from "@livekit/components-react";
-import { Room, LocalParticipant } from "livekit-client";
-import "@livekit/components-styles";
-import { useAuth } from "../../contexts/AuthContext";
+} from '@livekit/components-react';
+import { Room, LocalParticipant } from 'livekit-client';
+import '@livekit/components-styles';
+import { useAuth } from '../../contexts/AuthContext';
+import { useLiveKit } from '../../contexts/LiveKitContext';
 
 interface BroadcastRoomProps {
   sessionId: string;
@@ -34,7 +35,7 @@ function BroadcastControlBar() {
       await localParticipant.setCameraEnabled(newState);
       setIsCameraEnabled(newState);
     } catch (error) {
-      console.error("Error toggling camera:", error);
+      console.error('Error toggling camera:', error);
     }
   };
 
@@ -44,7 +45,7 @@ function BroadcastControlBar() {
       await localParticipant.setMicrophoneEnabled(newState);
       setIsMicrophoneEnabled(newState);
     } catch (error) {
-      console.error("Error toggling microphone:", error);
+      console.error('Error toggling microphone:', error);
     }
   };
 
@@ -53,37 +54,38 @@ function BroadcastControlBar() {
       <button
         onClick={handleToggleCamera}
         className="flex items-center space-x-2 px-3 py-1 rounded-md bg-gray-700 hover:bg-gray-600 text-white transition-colors"
-        title={isCameraEnabled ? "Disable Camera" : "Enable Camera"}
+        title={isCameraEnabled ? 'Disable Camera' : 'Enable Camera'}
       >
-        <span className="text-lg">{isCameraEnabled ? "📹" : "📷"}</span>
-        <span className="text-sm">{isCameraEnabled ? "On" : "Off"}</span>
+        <span className="text-lg">{isCameraEnabled ? '📹' : '📷'}</span>
+        <span className="text-sm">{isCameraEnabled ? 'On' : 'Off'}</span>
       </button>
       <button
         onClick={handleToggleMicrophone}
         className="flex items-center space-x-2 px-3 py-1 rounded-md bg-gray-700 hover:bg-gray-600 text-white transition-colors"
-        title={isMicrophoneEnabled ? "Disable Microphone" : "Enable Microphone"}
+        title={isMicrophoneEnabled ? 'Disable Microphone' : 'Enable Microphone'}
       >
-        <span className="text-lg">{isMicrophoneEnabled ? "🎤" : "🔇"}</span>
-        <span className="text-sm">{isMicrophoneEnabled ? "On" : "Off"}</span>
+        <span className="text-lg">{isMicrophoneEnabled ? '🎤' : '🔇'}</span>
+        <span className="text-sm">{isMicrophoneEnabled ? 'On' : 'Off'}</span>
+      </button>
+      <button
+        className="flex items-center space-x-2 px-3 py-1 rounded-md bg-gray-700 hover:bg-gray-600 text-white transition-colors"
+        title="Settings (Not Implemented)"
+      >
+        <span className="text-lg">⚙️</span>
+        <span className="text-sm">Settings</span>
       </button>
     </div>
   );
 }
 
-function BroadcastView({
-  sessionId,
-  livekitToken,
-  roomName,
-  wsUrl,
-  title,
-}: BroadcastRoomProps) {
+function BroadcastView({ sessionId, livekitToken, roomName, wsUrl, title }: BroadcastRoomProps) {
   const participants = useParticipants();
   const { localParticipant } = useLocalParticipant();
   const router = useRouter();
 
   const handleEndStream = () => {
     // In a real app, you'd call an API to end the session
-    router.push("/dashboard");
+    router.push('/dashboard');
   };
 
   return (
@@ -96,7 +98,7 @@ function BroadcastView({
               <h1 className="text-xl font-bold">{title}</h1>
               <p className="text-sm text-gray-300">
                 {participants.length} viewer
-                {participants.length !== 1 ? "s" : ""}
+                {participants.length !== 1 ? 's' : ''}
               </p>
             </div>
             <button
@@ -115,20 +117,19 @@ function BroadcastView({
             token={livekitToken}
             connect={true}
             onDisconnected={() => {
-              console.log("Disconnected from LiveKit room");
+              console.log('Disconnected from LiveKit room');
 
               // Show error notification to viewers about broadcaster disconnection
               // In a real app, this would be more sophisticated with proper error states
-              const notification = document.createElement("div");
+              const notification = document.createElement('div');
               notification.className =
-                "fixed top-4 left-1/2 transform -translate-x-1/2 bg-red-600 text-white px-4 py-2 rounded-lg z-50";
-              notification.textContent =
-                "Connection lost. Attempting to reconnect...";
+                'fixed top-4 left-1/2 transform -translate-x-1/2 bg-red-600 text-white px-4 py-2 rounded-lg z-50';
+              notification.textContent = 'Connection lost. Attempting to reconnect...';
               document.body.appendChild(notification);
 
               setTimeout(() => {
                 document.body.removeChild(notification);
-                router.push("/dashboard");
+                router.push('/dashboard');
               }, 3000);
             }}
           >
@@ -142,22 +143,15 @@ function BroadcastView({
               {participants.length > 1 && (
                 <div className="absolute bottom-20 right-4 w-64">
                   <div className="bg-black bg-opacity-70 p-3 rounded-lg">
-                    <h3 className="text-white text-sm font-medium mb-2">
-                      Viewers
-                    </h3>
+                    <h3 className="text-white text-sm font-medium mb-2">Viewers</h3>
                     <div className="space-y-2 max-h-32 overflow-y-auto">
                       {participants
-                        .filter((p) => p.identity !== "broadcaster-user-id") // Filter out the broadcaster
+                        .filter((p) => p.identity !== 'broadcaster-user-id') // Filter out the broadcaster
                         .slice(0, 5) // Show max 5 viewers
                         .map((participant) => (
-                          <div
-                            key={participant.identity}
-                            className="flex items-center space-x-2 text-white text-sm"
-                          >
+                          <div key={participant.identity} className="flex items-center space-x-2 text-white text-sm">
                             <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-                            <span>
-                              {participant.name || participant.identity}
-                            </span>
+                            <span>{participant.name || participant.identity}</span>
                           </div>
                         ))}
                     </div>
@@ -182,11 +176,9 @@ export default function BroadcastRoom() {
   const params = useParams();
   const router = useRouter();
   const { user, token: authToken } = useAuth();
+  const { room, connectToRoom, disconnectFromRoom, connectionState, error: livekitError } = useLiveKit();
   const sessionId = params.sessionId as string;
 
-  const [sessionData, setSessionData] = useState<Record<string, string> | null>(
-    null
-  );
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -199,31 +191,34 @@ export default function BroadcastRoom() {
       // For demo purposes, we'll use the sessionId to generate mock data
       const mockSessionData = {
         id: sessionId,
-        type: "broadcast",
-        title: "Live Stream",
-        livekitToken: "mock-livekit-token",
+        type: 'broadcast',
+        title: 'Live Stream',
+        livekitToken: 'mock-livekit-token',
         roomName: `broadcast-${sessionId}`,
-        wsUrl: "ws://localhost:7880",
+        wsUrl: 'ws://localhost:7880',
       };
 
-      setSessionData(mockSessionData);
+      // setSessionData(mockSessionData);
+      await connectToRoom(mockSessionData.livekitToken, mockSessionData.wsUrl);
     } catch (err) {
-      setError(
-        err instanceof Error ? err.message : "Failed to load broadcast session"
-      );
-      console.error("Error fetching session data:", err);
+      setError(err instanceof Error ? err.message : 'Failed to load broadcast session');
+      console.error('Error fetching session data:', err);
     } finally {
       setLoading(false);
     }
-  }, [sessionId]);
+  }, [sessionId, connectToRoom]);
 
   useEffect(() => {
     if (authToken && sessionId) {
       fetchSessionData();
     }
-  }, [authToken, fetchSessionData, sessionId]);
 
-  if (loading) {
+    return () => {
+      disconnectFromRoom();
+    };
+  }, [authToken, fetchSessionData, sessionId, disconnectFromRoom]);
+
+  if (loading || connectionState === 'connecting') {
     return (
       <div className="min-h-screen bg-gray-900 flex items-center justify-center">
         <div className="text-center text-white">
@@ -234,15 +229,29 @@ export default function BroadcastRoom() {
     );
   }
 
-  if (error || !sessionData) {
+  if (error || livekitError) {
     return (
       <div className="min-h-screen bg-gray-900 flex items-center justify-center">
         <div className="text-center text-white">
-          <p className="text-red-400 mb-4">
-            Error: {error || "Session not found"}
-          </p>
+          <p className="text-red-400 mb-4">Error: {error || livekitError || 'Session not found'}</p>
           <button
-            onClick={() => router.push("/dashboard")}
+            onClick={() => router.push('/dashboard')}
+            className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+          >
+            Go Back
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  if (!room) {
+    return (
+      <div className="min-h-screen bg-gray-900 flex items-center justify-center">
+        <div className="text-center text-white">
+          <p className="text-red-400 mb-4">Error: Room not available.</p>
+          <button
+            onClick={() => router.push('/dashboard')}
             className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
           >
             Go Back
@@ -255,10 +264,10 @@ export default function BroadcastRoom() {
   return (
     <BroadcastView
       sessionId={sessionId}
-      livekitToken={sessionData.livekitToken}
-      roomName={sessionData.roomName}
-      wsUrl={sessionData.wsUrl}
-      title={sessionData.title}
+      livekitToken={''} // Not needed directly by BroadcastView anymore
+      roomName={room.name}
+      wsUrl={'ws://localhost:7880'}
+      title={'Live Stream'} // Get actual title from session data
     />
   );
 }

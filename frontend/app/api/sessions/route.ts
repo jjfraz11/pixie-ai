@@ -7,7 +7,10 @@ const LIVEKIT_API_SECRET = process.env.LIVEKIT_API_SECRET || 'dev-api-secret';
 const LIVEKIT_WS_URL = process.env.LIVEKIT_WS_URL || 'ws://localhost:7880';
 
 interface CreateSessionRequest {
-  type: 'p2p' | 'broadcast';
+  type: 'P2P' | 'BROADCAST';
+  accessType: 'PUBLIC' | 'PRIVATE';
+  hostId: string;
+  password?: string;
   title?: string;
 }
 
@@ -34,40 +37,24 @@ interface LiveKitTokenPayload {
 export async function POST(request: NextRequest) {
   try {
     const body: CreateSessionRequest = await request.json();
-    const { type, title } = body;
+    const { type, accessType, hostId, password, title } = body;
 
     // Validate required fields
     if (!type) {
-      return NextResponse.json(
-        { error: 'Session type is required' },
-        { status: 400 }
-      );
-    }
-
-    if (!['p2p', 'broadcast'].includes(type)) {
-      return NextResponse.json(
-        { error: 'Invalid session type. Must be either "p2p" or "broadcast"' },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: 'Session type is required' }, { status: 400 });
     }
 
     // Extract token from Authorization header
     const authHeader = request.headers.get('authorization');
     if (!authHeader?.startsWith('Bearer ')) {
-      return NextResponse.json(
-        { error: 'Unauthorized' },
-        { status: 401 }
-      );
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
     const token = authHeader.substring(7);
 
     // Verify JWT token (in a real app, you'd verify the signature)
     if (!token) {
-      return NextResponse.json(
-        { error: 'Invalid token' },
-        { status: 401 }
-      );
+      return NextResponse.json({ error: 'Invalid token' }, { status: 401 });
     }
 
     // Forward the request to the backend to create the session
@@ -75,7 +62,7 @@ export async function POST(request: NextRequest) {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': authHeader, // Forward the authorization header
+        Authorization: authHeader, // Forward the authorization header
       },
       body: JSON.stringify({ type, title }),
     });
@@ -88,7 +75,7 @@ export async function POST(request: NextRequest) {
     const session = await backendResponse.json();
 
     // For broadcast sessions, we might also want to generate a LiveKit room
-    if (type === 'broadcast') {
+    if (type === 'BROADCAST') {
       // Generate LiveKit room token for the broadcaster
       const roomName = `broadcast-${session.id}`;
       const now = Math.floor(Date.now() / 1000);
@@ -130,9 +117,6 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(session);
   } catch (error) {
     console.error('Error creating session:', error);
-    return NextResponse.json(
-      { error: 'Internal server error' },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

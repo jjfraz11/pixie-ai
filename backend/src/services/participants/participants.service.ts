@@ -52,7 +52,8 @@ class ParticipantService implements Service<any> {
 
   async create(data: any, params?: AuthenticatedParams): Promise<Participant> {
     try {
-      const { sessionId, userId, participantIdentity, displayName, role } = data;
+      const { sessionId, userId, participantIdentity, role } = data;
+      const displayName = data.displayName || (params?.user?.email || ""); // Ensure displayName is always present
 
       // Fetch the session to check its type and participant limits
       const session = await prisma.session.findUnique({

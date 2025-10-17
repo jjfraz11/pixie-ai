@@ -6,16 +6,8 @@ import { v4 as uuidv4 } from 'uuid';
 
 import prisma from '@/prisma'; // Import prisma
 import { authorize } from '@/hooks/authorization';
-
-// Define the API response type after mapping sessionId to id
-interface SessionResponse {
-  id: string;
-  type: string;
-  accessType: string;
-  password?: string | null;
-  hostId: string;
-  createdAt: string; // Serialized as date-time string
-}
+import { SessionData, type Session, type SessionPatch } from './sessions.resolvers';
+import { AccessType } from '@prisma/client'; // Import AccessType enum
 
 interface AuthenticatedParams extends Params {
   user?: {
@@ -23,24 +15,6 @@ interface AuthenticatedParams extends Params {
     roles: string[];
   };
 }
-
-// Schema for creating new sessions
-export const sessionDataSchema = Type.Object({
-  type: Type.Union([Type.Literal('p2p'), Type.Literal('broadcast')]),
-  hostId: Type.String(),
-  accessType: Type.Optional(Type.Union([Type.Literal('PUBLIC'), Type.Literal('PRIVATE')])),
-  password: Type.Optional(Type.String()),
-});
-
-// Schema for the response data
-const sessionResultSchemaDefinition = {
-  id: Type.String(),
-  type: Type.String(),
-  hostId: Type.String(),
-  createdAt: Type.String({ format: 'date-time' }),
-};
-
-export const sessionResultSchema = Type.Object(sessionResultSchemaDefinition);
 
 // Schema for allowed query properties
 export const sessionQuerySchema = Type.Object({
@@ -77,11 +51,27 @@ class SessionService {
     this.app = app;
   }
 
-  async find(params?: AuthenticatedParams): Promise<SessionResponse[]> {
-    return [];
+  async find(params?: AuthenticatedParams): Promise<Session[]> {
+    try {
+      const sessions = await prisma.session.findMany();
+      return sessions.map((session) => {
+        const { password, ...rest } = session;
+        return {
+          ...rest,
+          type: rest.type,
+          accessType: rest.accessType.toString(),
+          createdAt: rest.createdAt.toISOString(),
+          updatedAt: rest.updatedAt.toISOString(),
+          startedAt: rest.startedAt?.toISOString() ?? undefined,
+          endedAt: rest.endedAt?.toISOString() ?? undefined,
+        };
+      });
+    } catch (error: any) {
+      throw new GeneralError('Failed to retrieve sessions', error);
+    }
   }
 
-  async get(id: string, params?: AuthenticatedParams): Promise<SessionResponse> {
+  async get(id: string, params?: AuthenticatedParams): Promise<Session> {
     try {
       const session = await prisma.session.findUnique({
         where: { id },
@@ -106,9 +96,12 @@ class SessionService {
       const { password, ...rest } = session; // Exclude password from response
       return {
         ...rest,
-        type: rest.type.toString(),
+        type: rest.type,
         accessType: rest.accessType.toString(),
         createdAt: rest.createdAt.toISOString(),
+        updatedAt: rest.updatedAt.toISOString(),
+        startedAt: rest.startedAt?.toISOString() ?? undefined,
+        endedAt: rest.endedAt?.toISOString() ?? undefined,
       };
     } catch (error: any) {
       if (error instanceof NotFound || error instanceof Forbidden) {
@@ -118,10 +111,9 @@ class SessionService {
     }
   }
 
-  async create(data: any, params?: AuthenticatedParams): Promise<SessionResponse> {
-    if (data.type !== 'P2P' && data.type !== 'BROADCAST') {
-      console.log({ badRequestData: data });
-      throw new BadRequest('Invalid session type. Must be either "P2P" or "BROADCAST"');
+  async create(data: SessionData, params?: AuthenticatedParams): Promise<Session> {
+    if (data.type.toUpperCase() !== 'P2P' && data.type.toUpperCase() !== 'BROADCAST') {
+      throw new BadRequest("Invalid session type. Must be either 'p2p' or 'broadcast'");
     }
 
     let passwordHash = undefined;
@@ -137,10 +129,11 @@ class SessionService {
       const newSession = await prisma.session.create({
         data: {
           ...data,
-          type: data.type === 'P2P' ? 'P2P' : 'BROADCAST',
-          accessType: data.accessType || 'PUBLIC',
-          passwordHash,
-          maxParticipants: data.type === 'broadcast' ? 1000 : 10, // Default to 1000 for broadcast, 10 for P2P
+          title: data.title, // Add title
+          type: data.type.toUpperCase() as any,
+          accessType: data.accessType ? (data.accessType.toUpperCase() as any) : ('PUBLIC' as any),
+          password: passwordHash,
+          maxParticipants: data.type.toUpperCase() === 'BROADCAST' ? 1000 : 10, // Default to 1000 for broadcast, 10 for P2P
           liveKitRoomId,
         },
       });
@@ -159,9 +152,12 @@ class SessionService {
       return {
         ...rest,
         id: newSession.id,
-        type: rest.type.toString(),
+        type: rest.type,
         accessType: rest.accessType.toString(),
         createdAt: rest.createdAt.toISOString(),
+        updatedAt: rest.updatedAt.toISOString(),
+        startedAt: rest.startedAt?.toISOString() ?? undefined,
+        endedAt: rest.endedAt?.toISOString() ?? undefined,
       };
     } catch (error: any) {
       if (error.code === 'P2002') {
@@ -172,20 +168,27 @@ class SessionService {
     }
   }
 
-  async patch(id: string, data: any, params?: AuthenticatedParams): Promise<SessionResponse> {
+  async patch(id: string, data: SessionPatch, params?: AuthenticatedParams): Promise<Session> {
     try {
+      const updatedData: any = { ...data };
+      if (updatedData.type) {
+        updatedData.type = updatedData.type.toUpperCase();
+      }
       const updatedSession = await prisma.session.update({
         where: { id },
-        data,
+        data: updatedData,
       });
       // Map sessionId to id for API response and serialize dates
       const { ...rest } = updatedSession;
       return {
         ...rest,
         id: updatedSession.id,
-        type: rest.type.toString(),
+        type: rest.type,
         accessType: rest.accessType.toString(),
         createdAt: rest.createdAt.toISOString(),
+        updatedAt: rest.updatedAt.toISOString(),
+        startedAt: rest.startedAt?.toISOString() ?? undefined,
+        endedAt: rest.endedAt?.toISOString() ?? undefined,
       };
     } catch (error: any) {
       if (error.code === 'P2025') {
@@ -196,7 +199,7 @@ class SessionService {
     }
   }
 
-  async remove(id: string, params?: AuthenticatedParams): Promise<SessionResponse> {
+  async remove(id: string, params?: AuthenticatedParams): Promise<Session> {
     try {
       const deletedSession = await prisma.session.delete({
         where: { id },
@@ -206,9 +209,12 @@ class SessionService {
       return {
         ...rest,
         id: deletedSession.id,
-        type: rest.type.toString(),
+        type: rest.type,
         accessType: rest.accessType.toString(),
         createdAt: rest.createdAt.toISOString(),
+        updatedAt: rest.updatedAt.toISOString(),
+        startedAt: rest.startedAt?.toISOString() ?? undefined,
+        endedAt: rest.endedAt?.toISOString() ?? undefined,
       };
     } catch (error: any) {
       if (error.code === 'P2025') {
@@ -246,8 +252,8 @@ export default function configureSessionsService(app: Application) {
         },
         // Add RBAC validation for broadcast sessions
         async (context: any) => {
-          if (context.data.type === 'broadcast') {
-            if (!context.params.user || !context.params.user.roles.includes('broadcaster')) {
+          if (context.data.type === 'BROADCAST') {
+            if (!context.params.user || !context.params.user.roles.includes('BROADCASTER')) {
               throw new Forbidden('Only broadcasters can create broadcast sessions.');
             }
           }
